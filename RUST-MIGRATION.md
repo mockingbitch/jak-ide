@@ -49,7 +49,9 @@ Ràng buộc số 1: **app luôn hoạt động bình thường ở mọi commit
   - Verified headless (mô phỏng đúng logic main.js): front door Rust phục vụ native (health desktop:true, files
     tree) + proxy `/` (index.html static), `/api/auth/status`, và SSE `/api/ai/chat` (frame text→done) qua Node.
     **Chưa chạy**: GUI Electron + `electron-builder dist` (cần máy có display; user tự verify `npm run dev`/`dist`).
-- **5. run-command** — allowlist + spawn; `POST /api/run-command`. Gỡ fallthrough.
+- **5. ✅ DONE** — run-command. `core/src/run.rs`: `POST /api/run-command`, chặn shell-operator, allowlist token
+  đầu (env `ALLOWED_COMMANDS` hoặc default), chạy `sh -c` ở project root, timeout 20s (kill_on_drop), cap 4MB.
+  Live-verified: echo có quote, pwd=root, rm bị chặn allowlist, `&&` bị chặn meta, exit≠0 giữ stderr, thiếu field→400.
 - **6. auth** — `/api/auth/status|login|logout`: dò CLI `claude`/`ant`, spawn `ant auth login`, đọc token
   `~/.config/anthropic`, method = apikey/oauth/claude-code/none. Gỡ fallthrough.
 - **7. AI** — `POST /api/ai/chat` (SSE):

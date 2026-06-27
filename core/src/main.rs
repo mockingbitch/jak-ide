@@ -10,6 +10,7 @@ mod index;
 mod paths;
 mod projects;
 mod proxy;
+mod run;
 mod search;
 mod shells;
 mod state;
@@ -36,7 +37,8 @@ async fn main() {
         .merge(search::router())
         .merge(git::router())
         .merge(terminal::router())
-        // Anything not ported yet (ai/auth/run + static renderer) → Node.
+        .merge(run::router())
+        // Anything not ported yet (ai/auth + static renderer) → Node.
         .fallback(proxy::handler)
         .with_state(st.clone());
 
