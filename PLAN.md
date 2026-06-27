@@ -51,12 +51,22 @@ Crates: `axum`, `tokio`, `ignore` (walk gitignore-aware), `nucleo` (fuzzy), `gre
 (content search), `notify(-debouncer)` (watch), `git2` (git), `portable-pty` (terminal),
 `reqwest` (AI/Anthropic SSE), `rusqlite` (index), `serde`.
 
+Crate: `core/` (jakide-core, axum). Build: `cargo build`; test: `cargo test`.
+Run standalone: `PROJECT_ROOT=<dir> JAKIDE_CORE_PORT=8787 cargo run`.
+
 Thứ tự port:
-1. `files/tree`, `files/file`, fonts, health.
-2. **Index + search** (giao #3): nucleo + ripgrep + notify + SQLite.
-3. `git/*`: `git2` cho status/diff/log/blame; spawn `git` cho push/pull/fetch/clone.
-4. Terminal PTY: `portable-pty` + axum WS (thay node-pty).
-5. AI: reqwest SSE + spawn `claude` CLI; chuyển agentic tool-loop sang Rust sau cùng.
+1. ✅ **DONE** `files/tree`, `files/file`, save/create/delete/apply, `projects/*`
+   (status/open/browse + recents), `fonts`, `health` — native Rust, cargo-tested
+   + parity-tested vs Node (path-safety, 409/422/400, runtime project switch).
+2. ⏳ **Index + search** (giao #3): nucleo + ripgrep + notify + SQLite.
+3. ⏳ `git/*`: `git2` cho status/diff/log/blame; spawn `git` cho push/pull/fetch/clone.
+4. ⏳ Terminal PTY: `portable-pty` + axum WS (thay node-pty).
+5. ⏳ AI: reqwest SSE + spawn `claude` CLI; chuyển agentic tool-loop sang Rust sau cùng.
+
+**Flip (đưa Rust thành backend chạy thật):** sau khi port thêm git+terminal+AI HOẶC
+thêm reverse-proxy (HTTP/SSE → Node cho route chưa port, WS cho terminal), đổi
+Electron spawn `jakide-core` thay `tsx`/server.cjs trên cùng cổng 8787. Hiện app vẫn
+chạy backend Node — Rust core build/test/parity xong nhưng **chưa wire vào Electron**.
 
 Rủi ro cao nhất: AI tool-loop + PTY → port sau cùng, chạy song song Node trong lúc chuyển.
 

@@ -11,3 +11,6 @@ desktop/release/
 
 # Local Claude settings
 .claude/settings.local.json
+
+# Rust build output
+core/target/
