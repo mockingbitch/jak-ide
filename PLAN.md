@@ -53,6 +53,7 @@ Crates: `axum`, `tokio`, `ignore` (walk gitignore-aware), `nucleo` (fuzzy), `gre
 
 Crate: `core/` (jakide-core, axum). Build: `cargo build`; test: `cargo test`.
 Run standalone: `PROJECT_ROOT=<dir> JAKIDE_CORE_PORT=8787 cargo run`.
+**Runbook chi tiết (giữ app luôn chạy, strangler-fig, gỡ Node ở cuối):** [RUST-MIGRATION.md](RUST-MIGRATION.md).
 
 Thứ tự port:
 1. ✅ **DONE** `files/tree`, `files/file`, save/create/delete/apply, `projects/*`
