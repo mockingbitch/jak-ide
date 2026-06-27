@@ -4,6 +4,12 @@ use std::path::{Component, Path, PathBuf};
 /// Resolve a user-supplied relative path under `root`, guaranteeing the result
 /// stays inside it (blocks `..` traversal and absolute escapes). Lexical only —
 /// no symlink resolution — matching the old Node `resolveSafe`.
+///
+/// KNOWN LIMITATION (parity with Node): a symlink that already lives *inside*
+/// `root` but points outside is NOT blocked, so writes/deletes can follow it out
+/// of the sandbox. Acceptable for a local, single-user IDE on trusted projects;
+/// harden later by canonicalizing the longest existing prefix if untrusted repos
+/// become a concern.
 pub fn resolve_safe(root: &Path, rel: &str) -> Result<PathBuf, ApiError> {
     let rel = rel.trim_start_matches(['/', '\\']);
     let mut out = root.to_path_buf();

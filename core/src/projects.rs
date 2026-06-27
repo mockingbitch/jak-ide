@@ -98,6 +98,7 @@ async fn open_project(State(st): State<Arc<AppState>>, Json(b): Json<OpenBody>) 
     }
     st.set_root(abs.clone());
     record_open(&abs);
+    st.reindex(); // refresh the file index for the new project
     Ok(Json(json!({ "ok": true, "current": abs.to_string_lossy(), "name": basename(&abs) })))
 }
 

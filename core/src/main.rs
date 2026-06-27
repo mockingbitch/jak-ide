@@ -5,8 +5,10 @@ mod error;
 mod files;
 mod fonts;
 mod health;
+mod index;
 mod paths;
 mod projects;
+mod search;
 mod state;
 
 use std::sync::Arc;
@@ -18,12 +20,14 @@ use state::AppState;
 async fn main() {
     let st = Arc::new(AppState::from_env());
     projects::record_open(&st.root()); // seed recents with the boot folder
+    st.reindex(); // build the file index for the boot folder in the background
 
     let app = Router::new()
         .merge(health::router())
         .merge(files::router())
         .merge(projects::router())
         .merge(fonts::router())
+        .merge(search::router())
         .with_state(st.clone());
 
     let port: u16 = std::env::var("JAKIDE_CORE_PORT")

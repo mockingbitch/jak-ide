@@ -13,6 +13,13 @@ axum = "0.7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Index + search (Stage 1)
+rusqlite = { version = "0.32", features = ["bundled"] }
+ignore = "0.4"
+fuzzy-matcher = "0.3"
+grep-regex = "0.1"
+grep-searcher = "0.1"
+grep-matcher = "0.1"
 
 [profile.release]
 opt-level = "z"
