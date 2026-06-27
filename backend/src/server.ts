@@ -2,7 +2,6 @@ import http from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
 import express, { type NextFunction, type Request, type Response } from 'express';
-import cors from 'cors';
 import { PORT, PROJECT_ROOT, MODEL, HAS_API_KEY } from './config';
 import { filesRouter } from './routes/files';
 import { runRouter } from './routes/run';
@@ -26,7 +25,6 @@ export function createApp(opts: { staticDir?: string } = {}) {
   recordInitialRoot(); // seed the recents list with the folder we booted into
 
   const app = express();
-  app.use(cors());
   app.use(express.json({ limit: '12mb' }));
 
   app.get('/api/health', (_req, res) => {

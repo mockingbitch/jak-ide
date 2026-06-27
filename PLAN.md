@@ -8,7 +8,9 @@ mỗi feature kèm test.
 - **Rust core** = **sidecar HTTP/WS (axum + tokio)**, Electron spawn, loopback. Frontend giữ hợp đồng
   `/api/*` ⇒ thay đổi tối thiểu. Migrate kiểu **strangler-fig** (Rust phục vụ route đã port, Node giữ
   phần còn lại, flip proxy dần) — JakIDE luôn chạy được.
-- **Target = chỉ desktop (Electron)** ⇒ web-dev (trình duyệt) là tùy chọn dev, không phải mục tiêu.
+- **Target = chỉ desktop (Electron)** — web/trình duyệt đã **gỡ bỏ**: Electron là lối chạy
+  duy nhất (`cd desktop && npm run dev`). Vite chỉ còn là công cụ dev/build cho renderer
+  bên trong Electron; đã bỏ CORS (backend) và script `preview` (frontend).
 - **LSP** = PHP (Intelephense), TypeScript/JavaScript, Python (Pyright), Go (gopls), YAML.
 - **SQLite (rusqlite)**: index file/symbol, recent projects, settings → khởi động nhanh, RAM thấp.
 

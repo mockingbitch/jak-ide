@@ -31,87 +31,61 @@ JakIDE/
 - Node.js 18+ (tested on Node 22)
 - An Anthropic API key — https://console.anthropic.com
 
-## Setup & run
+## Run (desktop app)
 
-Two terminals.
+JakIDE runs **only as a native desktop app (Electron)** — there is no standalone
+browser mode. The `desktop/` package launches everything (backend + the
+Vite-built renderer + the Electron window) in one command.
 
-### 1. Backend
-
-```bash
-cd backend
-cp .env.example .env          # then edit .env and set ANTHROPIC_API_KEY
-npm install                   # already done if you ran it during setup
-npm run dev                   # http://localhost:8787
-```
-
-`.env` knobs: `ANTHROPIC_API_KEY` (required for AI), `ANTHROPIC_MODEL`
-(default `claude-opus-4-8`), `PROJECT_ROOT` (the folder the IDE opens — defaults
-to `backend/workspace`, which ships with sample files), `PORT`, `ALLOWED_COMMANDS`.
-
-### 2. Frontend
+### One-time setup
 
 ```bash
-cd frontend
-npm install                   # already done if you ran it during setup
-npm run dev                   # http://localhost:5173
+( cd backend  && npm install && cp -n .env.example .env )   # then set ANTHROPIC_API_KEY in backend/.env
+( cd frontend && npm install )
+( cd desktop  && npm install )
 ```
 
-Open http://localhost:5173. The Vite dev server proxies `/api` and `/ws` to the
-backend, so no CORS setup is needed. Without an API key the editor, explorer,
-and terminal all work; the chat panel shows a reminder until the key is set.
-
-> Each part runs independently. The backend is a normal HTTP+WS server; the
-> frontend is a static Vite app. Point `PROJECT_ROOT` at any folder to use the
-> IDE on a real project.
-
-## Run as a desktop app (Ubuntu / Linux)
-
-JakIDE can run as a native desktop application (Electron) instead of in a
-browser. The `desktop/` package wraps the existing backend and frontend — no
-rewrite.
-
-```bash
-cd desktop
-npm install            # downloads Electron + electron-builder
-```
+`backend/.env` knobs (dev): `ANTHROPIC_API_KEY` (required for AI),
+`ANTHROPIC_MODEL` (default `claude-opus-4-8`), `PROJECT_ROOT` (folder the IDE
+opens — defaults to `backend/workspace`), `PORT`, `ALLOWED_COMMANDS`.
 
 ### Develop (native window + hot reload)
 
 ```bash
+cd desktop
 npm run dev
 ```
 
-This starts the backend (`tsx`), the Vite dev server, and an Electron window
-pointed at it. In dev the project folder and API key come from `backend/.env`
-(set `ANTHROPIC_API_KEY` and optionally `PROJECT_ROOT` there).
+One command starts the backend, the Vite renderer dev server (HMR) and an
+Electron window pointed at it. The window is the only UI — nothing is opened in a
+browser. Vite is used purely as the renderer's dev/build tool inside Electron.
 
 ### Run the packaged experience locally
 
 ```bash
-npm start              # builds backend bundle + frontend, then launches Electron
+cd desktop
+npm start              # builds the backend bundle + renderer, then launches Electron
 ```
 
-In this mode the Electron main process **embeds the backend** (a single bundled
-`app/server.cjs`) which also serves the built UI, so the window just loads
-`http://127.0.0.1:<port>`. Use the menus:
+Here the Electron main process **embeds the backend** (a single bundled
+`app/server.cjs`) which also serves the built UI on a loopback port, so the
+window loads `http://127.0.0.1:<port>` (same-origin; no CORS). In-app:
 
-- **File → Open Project Folder…** — pick any folder; the app relaunches scoped to it.
-- **File → Set Anthropic API Key…** — stored locally in the app's config (`~/.config/JakIDE/config.json`).
+- **☰ menu → Open Folder…** (or the project chip ▾) — open / switch the project folder.
+- **☰ menu → Set Anthropic API Key…** — stored locally (`~/.config/JakIDE/config.json`).
+
+> All actions live in the in-app **hamburger (☰) menu** — there is no native
+> File/View/Help menu bar.
 
 ### Build installers (.AppImage and .deb)
 
 ```bash
+cd desktop
 npm run dist           # outputs to desktop/release/
 ```
 
-Produces `JakIDE-0.1.0.AppImage` (run with `chmod +x` then double-click) and a
-`.deb` (install with `sudo dpkg -i`). On minimal/headless Linux, Electron may
-need `--no-sandbox`; add an icon under `desktop/build/` for a custom launcher icon.
-
-> The backend is bundled with esbuild into one file, so the installer carries no
-> backend `node_modules`. Tauri (smaller binaries) would require running the Node
-> backend as a separate sidecar — Electron reuses it directly, which is why it's
-> the default here.
+Produces `JakIDE-0.1.0.AppImage` and a `.deb`. On minimal/headless Linux,
+Electron may need `--no-sandbox`.
 
 ## Authentication
 
