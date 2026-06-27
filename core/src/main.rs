@@ -10,6 +10,7 @@ mod paths;
 mod projects;
 mod search;
 mod state;
+mod watch;
 
 use std::sync::Arc;
 
@@ -21,6 +22,7 @@ async fn main() {
     let st = Arc::new(AppState::from_env());
     projects::record_open(&st.root()); // seed recents with the boot folder
     st.reindex(); // build the file index for the boot folder in the background
+    watch::spawn(st.clone()); // live-update the index as files change
 
     let app = Router::new()
         .merge(health::router())

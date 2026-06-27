@@ -20,6 +20,8 @@ fuzzy-matcher = "0.3"
 grep-regex = "0.1"
 grep-searcher = "0.1"
 grep-matcher = "0.1"
+# Live index updates (Stage 1b)
+notify = "6"
 
 [profile.release]
 opt-level = "z"

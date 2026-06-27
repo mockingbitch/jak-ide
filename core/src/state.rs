@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, RwLock};
 
 use crate::index::FileIndex;
@@ -21,6 +22,9 @@ pub struct AppState {
     pub has_api_key: bool,
     pub desktop: bool,
     pub index: Arc<FileIndex>,
+    /// Set by the fs watcher; `set_root` pushes the new root so the watcher can
+    /// re-target its watches on a project switch. `None` until the watcher spawns.
+    watch_tx: RwLock<Option<Sender<PathBuf>>>,
 }
 
 impl AppState {
@@ -40,14 +44,21 @@ impl AppState {
             has_api_key: std::env::var("ANTHROPIC_API_KEY").map(|v| !v.is_empty()).unwrap_or(false),
             desktop: std::env::var("JAKIDE_DESKTOP").map(|v| v == "1").unwrap_or(false),
             index: Arc::new(FileIndex::open()),
+            watch_tx: RwLock::new(None),
         }
     }
 
-    /// Rebuild the file index for the current root, off the request path.
-    /// Clears the snapshot first so search never returns the previous project's
-    /// paths during the (brief) rebuild window.
+    /// Full reindex for a project switch: clear the snapshot first so search never
+    /// returns the previous project's paths during the (brief) rebuild window.
     pub fn reindex(&self) {
         self.index.clear();
+        self.refresh_index();
+    }
+
+    /// Rebuild the index in place, off the request path, WITHOUT clearing first.
+    /// Used by the fs watcher: `rebuild` swaps the snapshot atomically at the end,
+    /// so a same-project refresh never blanks out search results mid-edit.
+    pub fn refresh_index(&self) {
         let idx = self.index.clone();
         let root = self.root();
         std::thread::spawn(move || idx.rebuild(&root));
@@ -58,6 +69,15 @@ impl AppState {
     }
 
     pub fn set_root(&self, p: PathBuf) {
-        *self.root.write().unwrap() = p;
+        *self.root.write().unwrap() = p.clone();
+        // Notify the fs watcher (if running) to re-target the new project.
+        if let Some(tx) = self.watch_tx.read().unwrap().as_ref() {
+            let _ = tx.send(p);
+        }
+    }
+
+    /// Register the watcher's reroot channel (called once when the watcher spawns).
+    pub fn set_watch_tx(&self, tx: Sender<PathBuf>) {
+        *self.watch_tx.write().unwrap() = Some(tx);
     }
 }
