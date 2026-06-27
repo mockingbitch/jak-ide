@@ -52,8 +52,11 @@ Ràng buộc số 1: **app luôn hoạt động bình thường ở mọi commit
 - **5. ✅ DONE** — run-command. `core/src/run.rs`: `POST /api/run-command`, chặn shell-operator, allowlist token
   đầu (env `ALLOWED_COMMANDS` hoặc default), chạy `sh -c` ở project root, timeout 20s (kill_on_drop), cap 4MB.
   Live-verified: echo có quote, pwd=root, rm bị chặn allowlist, `&&` bị chặn meta, exit≠0 giữ stderr, thiếu field→400.
-- **6. auth** — `/api/auth/status|login|logout`: dò CLI `claude`/`ant`, spawn `ant auth login`, đọc token
-  `~/.config/anthropic`, method = apikey/oauth/claude-code/none. Gỡ fallthrough.
+- **6. ✅ DONE** — auth. `core/src/auth.rs`: `/api/auth/status|login|logout`. Dò `claude`/`ant --version`,
+  `~/.claude/.credentials.json` (presence-only), `ant auth print-credentials --env` cho OAuth cred; method =
+  apikey/claude-code/oauth/none. Login serialize bằng Mutex (1 flow/lần), trả 400 khi fail. Credential helper
+  (`resolve_method`/`get_oauth_cred`/`env_api_key`/`OAUTH_BETA`) export sẵn cho engine AI (Stage 7).
+  Live-verified: `/api/auth/status` khớp byte-for-byte với Node (method=claude-code).
 - **7. AI** — `POST /api/ai/chat` (SSE):
   - **claude-code / oauth(ant)**: spawn CLI (`claude -p` / `ant`), stream event → SSE. *(nhẹ)*
   - **api key trực tiếp**: `reqwest` streaming POST `/v1/messages`, chạy vòng lặp tool (≤20) với
