@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import Editor, { DiffEditor, useMonaco, type OnMount, type BeforeMount } from '@monaco-editor/react';
 import { useStore, activeFile } from '../store';
 import { saveFile, deleteFileApi, gitCommitDiff } from '../api';
-import { monacoColors } from '../theme';
+import { defineJakIDETheme } from '../lib/monacoTheme';
 import { MarkdownPreview } from './MarkdownPreview';
 import { FileIcon } from './FileIcon';
+import { MergeEditor } from './MergeEditor';
 import { IconChevronRight, IconClose } from './icons';
 
 const LANG: Record<string, string> = {
@@ -26,37 +27,6 @@ function langFor(path?: string): string {
 
 function basename(p: string): string {
   return p.split('/').pop() ?? p;
-}
-
-function defineJakIDETheme(monaco: any, themeSetting: ReturnType<typeof useStore.getState>['theme']) {
-  const c = monacoColors(themeSetting);
-  const dark = c.base === 'vs-dark';
-  monaco.editor.defineTheme('jakide', {
-    base: c.base,
-    inherit: true,
-    rules: [],
-    colors: {
-      'editor.background': c.bg,
-      'editor.foreground': c.fg,
-      'editorGutter.background': c.bg,
-      'editorLineNumber.foreground': dark ? '#4b4e54' : '#aeb1b8',
-      'editorLineNumber.activeForeground': dark ? '#a0a4ab' : '#5a5d66',
-      'editor.lineHighlightBackground': dark ? '#26282e' : '#f5f6f8',
-      'editor.lineHighlightBorder': '#00000000',
-      'editor.selectionBackground': themeSetting.accent + '44',
-      'editor.inactiveSelectionBackground': themeSetting.accent + '22',
-      'editorCursor.foreground': themeSetting.accent,
-      'editorIndentGuide.background1': dark ? '#2f3137' : '#e9eaee',
-      'editorIndentGuide.activeBackground1': dark ? '#43454a' : '#c9ccd2',
-      'editorWidget.background': dark ? '#2b2d30' : '#ffffff',
-      'editorWidget.border': dark ? '#393b40' : '#ebecf0',
-      'editorBracketMatch.background': themeSetting.accent + '22',
-      'editorBracketMatch.border': themeSetting.accent + '88',
-      'scrollbarSlider.background': dark ? '#393b4080' : '#c9ccd280',
-      'scrollbarSlider.hoverBackground': dark ? '#4b4e54aa' : '#aeb1b8aa',
-      'focusBorder': '#00000000',
-    },
-  });
 }
 
 /** Path breadcrumb shown under the tab bar (folders › … › file). */
@@ -104,6 +74,8 @@ export function EditorPane() {
   const closeGitBlame = useStore((s) => s.closeGitBlame);
   const gitHistory = useStore((s) => s.gitHistory);
   const closeGitHistory = useStore((s) => s.closeGitHistory);
+  const mergeView = useStore((s) => s.mergeView);
+  const bumpGitRefresh = useStore((s) => s.bumpGitRefresh);
   const monaco = useMonaco();
   const file = activeFile();
   const change = file ? changes[file.path] : undefined;
@@ -146,6 +118,7 @@ export function EditorPane() {
     try {
       await saveFile(f.path, f.content);
       markSaved(f.path);
+      bumpGitRefresh(); // saving may change git status → refresh badges/panel
     } catch (e) {
       alert((e as Error).message);
     }
@@ -203,6 +176,9 @@ export function EditorPane() {
       }}
     />
   ) : null;
+
+  // A merge conflict takes over the editor area (3-way resolver).
+  if (mergeView) return <MergeEditor />;
 
   // A git diff takes over the editor area (side-by-side, read-only).
   if (gitDiff) {

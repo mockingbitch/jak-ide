@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { getProjects, openProjectApi, getTree } from '../api';
 import { IconChevronDown, IconFolderOpen } from './icons';
-import { FolderPicker } from './FolderPicker';
 
 /** Two-letter project initials, JetBrains-style (split on separators). */
 function initials(name: string): string {
@@ -19,37 +17,25 @@ const baseName = (p: string) => p.replace(/[/\\]+$/, '').split(/[/\\]/).pop() ||
 export function ProjectMenu() {
   const projectRoot = useStore((s) => s.projectRoot);
   const recents = useStore((s) => s.recents);
-  const setProjects = useStore((s) => s.setProjects);
-  const setTree = useStore((s) => s.setTree);
-  const resetWorkspace = useStore((s) => s.resetWorkspace);
+  const switchProject = useStore((s) => s.switchProject);
+  const openFolderPicker = useStore((s) => s.openFolderPicker);
 
   const [open, setOpen] = useState(false);
-  const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const name = baseName(projectRoot);
   const others = recents.filter((r) => r.path !== projectRoot);
 
-  // Switch the backend to `dir`, then reset the workspace and reload tree + recents.
   const doSwitch = async (dir: string) => {
     if (busy) return;
     setBusy(true);
     try {
-      await openProjectApi(dir);
-      resetWorkspace();
-      try {
-        setTree(await getTree());
-      } catch {
-        /* empty/unreadable project — leave tree null */
-      }
-      const p = await getProjects();
-      setProjects(p.current, p.recents);
+      await switchProject(dir);
     } catch (e) {
       alert('Could not open project: ' + (e as Error).message);
     } finally {
       setBusy(false);
       setOpen(false);
-      setPicking(false);
     }
   };
 
@@ -109,7 +95,7 @@ export function ProjectMenu() {
               role="menuitem"
               onClick={() => {
                 setOpen(false);
-                setPicking(true);
+                openFolderPicker();
               }}
             >
               <IconFolderOpen size={16} />
@@ -118,8 +104,6 @@ export function ProjectMenu() {
           </div>
         </>
       )}
-
-      {picking && <FolderPicker onClose={() => setPicking(false)} onPick={doSwitch} />}
     </>
   );
 }

@@ -8,3 +8,6 @@ build/
 .vite/
 desktop/app/
 desktop/release/
+
+# Local Claude settings
+.claude/settings.local.json

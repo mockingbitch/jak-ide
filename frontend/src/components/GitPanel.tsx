@@ -1,38 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import {
   gitStatus,
-  gitBranches,
   gitLog,
   gitDiffApi,
-  gitStage,
-  gitStageAll,
-  gitUnstage,
-  gitUnstageAll,
   gitDiscard,
-  gitCommit,
+  gitCommitFiles,
   gitInit,
-  gitCheckout,
-  gitCreateBranch,
-  gitDeleteBranch,
-  gitMerge,
+  gitResolve,
+  gitConflict,
   gitFetch,
   gitPull,
   gitPush,
-  gitResolve,
 } from '../api';
-import type { GitStatus, GitBranches, GitCommit, GitFileEntry } from '../types';
+import type { GitStatus, GitCommit, GitFileEntry } from '../types';
 import { FileIcon } from './FileIcon';
 import { CloneDialog } from './CloneDialog';
-import {
-  IconBranch,
-  IconRefresh,
-  IconArrowUp,
-  IconArrowDown,
-  IconPlus,
-  IconCheck,
-  IconTrash,
-} from './icons';
+import { BranchMenu } from './BranchMenu';
+import { IconBranch, IconRefresh, IconArrowUp, IconArrowDown, IconTrash } from './icons';
 
 const dirOf = (p: string) => {
   const i = p.lastIndexOf('/');
@@ -40,10 +25,10 @@ const dirOf = (p: string) => {
 };
 const baseOf = (p: string) => p.split('/').pop() ?? p;
 
-function statusOf(f: GitFileEntry, group: 'staged' | 'work'): { letter: string; cls: string } {
+function statusOf(f: GitFileEntry): { letter: string; cls: string } {
   if (f.conflicted) return { letter: 'U', cls: 'u' };
   if (f.index === '?') return { letter: '?', cls: 'q' };
-  const l = group === 'staged' ? f.index : f.work;
+  const l = f.work !== '.' ? f.work : f.index;
   const cls = l === 'A' ? 'a' : l === 'D' ? 'd' : l === 'R' || l === 'C' ? 'r' : 'm';
   return { letter: l, cls };
 }
@@ -61,7 +46,7 @@ interface GraphRow {
 }
 
 function computeGraph(commits: GitCommit[]): { rows: GraphRow[]; lanes: number } {
-  let lanes: (string | null)[] = [];
+  const lanes: (string | null)[] = [];
   let maxLanes = 1;
   const rows: GraphRow[] = [];
   for (const c of commits) {
@@ -127,9 +112,10 @@ export function GitPanel() {
   const setGit = useStore((s) => s.setGit);
   const setGitFiles = useStore((s) => s.setGitFiles);
   const openGitDiff = useStore((s) => s.openGitDiff);
+  const openMergeView = useStore((s) => s.openMergeView);
+  const gitRefreshSeq = useStore((s) => s.gitRefreshSeq);
 
   const [status, setStatus] = useState<GitStatus | null>(null);
-  const [branches, setBranches] = useState<GitBranches | null>(null);
   const [commits, setCommits] = useState<GitCommit[]>([]);
   const [tab, setTab] = useState<'changes' | 'log'>('changes');
   const [message, setMessage] = useState('');
@@ -137,20 +123,16 @@ export function GitPanel() {
   const [error, setError] = useState<string | null>(null);
   const [branchMenu, setBranchMenu] = useState(false);
   const [cloning, setCloning] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const prevPaths = useRef<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
     try {
       const st = await gitStatus();
       setStatus(st);
-      setGit({ repo: st.repo, branch: st.branch, ahead: st.ahead, behind: st.behind, changed: st.files.length });
+      setGit({ repo: st.repo, branch: st.branch, ahead: st.ahead, behind: st.behind, changed: st.files.length, detached: st.detached });
       setGitFiles(st.files);
-      if (st.repo) {
-        setBranches(await gitBranches());
-        setCommits(await gitLog(80));
-      } else {
-        setBranches(null);
-        setCommits([]);
-      }
+      setCommits(st.repo ? await gitLog(80) : []);
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -159,7 +141,19 @@ export function GitPanel() {
 
   useEffect(() => {
     refresh();
-  }, [refresh, projectRoot]);
+  }, [refresh, projectRoot, gitRefreshSeq]);
+
+  // Reconcile commit selection when the file list changes: new files default
+  // to checked, files the user unchecked stay unchecked.
+  useEffect(() => {
+    const committable = (status?.files ?? []).filter((f) => !f.conflicted);
+    setSelected((prev) => {
+      const next = new Set<string>();
+      for (const f of committable) if (!prevPaths.current.has(f.path) || prev.has(f.path)) next.add(f.path);
+      return next;
+    });
+    prevPaths.current = new Set(committable.map((f) => f.path));
+  }, [status]);
 
   const act = async (fn: () => Promise<unknown>) => {
     if (busy) return;
@@ -175,25 +169,45 @@ export function GitPanel() {
     }
   };
 
-  const openDiff = async (f: GitFileEntry, mode: 'working' | 'staged') => {
+  const openDiff = async (f: GitFileEntry) => {
     try {
-      openGitDiff(await gitDiffApi(f.path, mode));
+      openGitDiff(await gitDiffApi(f.path, 'working'));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  const openMerge = async (p: string) => {
+    try {
+      openMergeView(await gitConflict(p));
     } catch (e) {
       setError((e as Error).message);
     }
   };
 
-  const commit = () =>
-    act(async () => {
-      await gitCommit(message.trim());
-      setMessage('');
+  const toggle = (p: string) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      n.has(p) ? n.delete(p) : n.add(p);
+      return n;
+    });
+  const toggleGroup = (list: GitFileEntry[], on: boolean) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      list.forEach((f) => (on ? n.add(f.path) : n.delete(f.path)));
+      return n;
     });
 
-  const newBranch = () => {
-    const name = prompt('New branch name:');
-    setBranchMenu(false);
-    if (name && name.trim()) act(() => gitCreateBranch(name.trim(), true));
-  };
+  const commit = () =>
+    act(async () => {
+      const paths: string[] = [];
+      for (const f of status?.files ?? [])
+        if (selected.has(f.path)) {
+          paths.push(f.path);
+          if (f.orig) paths.push(f.orig);
+        }
+      await gitCommitFiles(message.trim(), paths);
+      setMessage('');
+    });
 
   const graph = useMemo(() => computeGraph(commits), [commits]);
 
@@ -224,80 +238,72 @@ export function GitPanel() {
 
   const files = status?.files ?? [];
   const conflicts = files.filter((f) => f.conflicted);
-  const staged = files.filter((f) => !f.conflicted && f.index !== '.' && f.index !== '?');
-  const unstaged = files.filter((f) => !f.conflicted && f.index !== '?' && f.work !== '.');
+  const changes = files.filter((f) => !f.conflicted && f.index !== '?');
   const untracked = files.filter((f) => f.index === '?');
+  const selectedCount = [...changes, ...untracked].filter((f) => selected.has(f.path)).length;
 
-  const FileRow = ({ f, group }: { f: GitFileEntry; group: 'staged' | 'work' }) => {
-    const s = statusOf(f, group);
-    const mode = group === 'staged' ? 'staged' : 'working';
+  const FileRow = ({ f }: { f: GitFileEntry }) => {
+    const s = statusOf(f);
     return (
-      <div className="git-file" onClick={() => openDiff(f, mode)} title={f.path}>
+      <div className="git-file" onClick={() => openDiff(f)} title={f.path}>
+        <input
+          type="checkbox"
+          className="git-check"
+          checked={selected.has(f.path)}
+          onClick={(e) => e.stopPropagation()}
+          onChange={() => toggle(f.path)}
+        />
         <span className={'git-badge ' + s.cls}>{s.letter}</span>
         <FileIcon name={baseOf(f.path)} />
         <span className="git-file-name">{baseOf(f.path)}</span>
         <span className="git-file-dir">{dirOf(f.path)}</span>
         <span className="git-file-actions" onClick={(e) => e.stopPropagation()}>
-          {group === 'staged' ? (
-            <button className="icon-btn xs" title="Unstage" onClick={() => act(() => gitUnstage([f.path]))}>
-              <IconArrowDown size={14} />
+          {f.index !== '?' && (
+            <button
+              className="icon-btn xs danger"
+              title="Discard changes"
+              onClick={() => confirm(`Discard changes to ${f.path}?`) && act(() => gitDiscard([f.path]))}
+            >
+              <IconTrash size={13} />
             </button>
-          ) : (
-            <>
-              <button className="icon-btn xs" title="Stage" onClick={() => act(() => gitStage([f.path]))}>
-                <IconPlus size={14} />
-              </button>
-              {f.index !== '?' && (
-                <button
-                  className="icon-btn xs danger"
-                  title="Discard changes"
-                  onClick={() => confirm(`Discard changes to ${f.path}?`) && act(() => gitDiscard([f.path]))}
-                >
-                  <IconTrash size={13} />
-                </button>
-              )}
-            </>
           )}
         </span>
       </div>
     );
   };
 
-  const Group = ({
-    title,
-    list,
-    group,
-    onAll,
-    allLabel,
-  }: {
-    title: string;
-    list: GitFileEntry[];
-    group: 'staged' | 'work';
-    onAll?: () => void;
-    allLabel?: string;
-  }) =>
-    list.length === 0 ? null : (
+  const Group = ({ title, list }: { title: string; list: GitFileEntry[] }) => {
+    if (list.length === 0) return null;
+    const sel = list.filter((f) => selected.has(f.path)).length;
+    const all = sel === list.length;
+    const some = sel > 0 && !all;
+    return (
       <div className="git-group">
         <div className="git-group-head">
-          <span>
+          <label className="git-group-check">
+            <input
+              type="checkbox"
+              className="git-check"
+              checked={all}
+              ref={(el) => {
+                if (el) el.indeterminate = some;
+              }}
+              onChange={() => toggleGroup(list, !all)}
+            />
             {title} <span className="muted">{list.length}</span>
-          </span>
-          {onAll && (
-            <button className="link" onClick={onAll}>
-              {allLabel}
-            </button>
-          )}
+          </label>
         </div>
         {list.map((f) => (
-          <FileRow key={group + ':' + f.path} f={f} group={group} />
+          <FileRow key={f.path} f={f} />
         ))}
       </div>
     );
+  };
 
   return (
     <div className="git-panel">
       <div className="tw-header git-head">
-        <button className="git-branch-btn" onClick={() => setBranchMenu((o) => !o)} title="Branches">
+        <button className="git-branch-btn" onClick={() => setBranchMenu((o) => !o)} title="Branches" aria-expanded={branchMenu}>
           <IconBranch size={15} />
           <span className="git-branch-name">{status?.branch ?? (status?.detached ? 'detached' : '—')}</span>
           {!!status?.ahead && <span className="git-ab">↑{status.ahead}</span>}
@@ -310,62 +316,20 @@ export function GitPanel() {
           <button className="icon-btn" title="Pull" disabled={busy} onClick={() => act(gitPull)}>
             <IconArrowDown size={15} />
           </button>
-          <button className="icon-btn" title="Push" disabled={busy} onClick={() => act(() => gitPush())}>
+          <button
+            className="icon-btn"
+            title={status?.upstream == null ? 'Push (publish branch)' : 'Push'}
+            disabled={busy}
+            onClick={() => act(() => gitPush(status?.upstream == null))}
+          >
             <IconArrowUp size={15} />
           </button>
         </div>
-
-        {branchMenu && branches && (
+        {branchMenu && (
           <>
             <div className="menu-overlay" onClick={() => setBranchMenu(false)} />
-            <div className="git-branch-menu" role="menu">
-              <div className="proj-menu-label">Branches</div>
-              {branches.local.map((b) => (
-                <div key={b.name} className={'git-branch-row' + (b.current ? ' current' : '')}>
-                  <button
-                    className="git-branch-pick"
-                    disabled={busy}
-                    onClick={() => {
-                      setBranchMenu(false);
-                      if (!b.current) act(() => gitCheckout(b.name));
-                    }}
-                  >
-                    <span className="git-branch-check">{b.current ? <IconCheck size={14} /> : null}</span>
-                    {b.name}
-                  </button>
-                  {!b.current && (
-                    <span className="git-branch-row-actions">
-                      <button
-                        className="icon-btn xs"
-                        title={`Merge ${b.name} into current`}
-                        onClick={() => {
-                          setBranchMenu(false);
-                          act(() => gitMerge(b.name));
-                        }}
-                      >
-                        <IconBranch size={13} />
-                      </button>
-                      <button
-                        className="icon-btn xs danger"
-                        title={`Delete ${b.name}`}
-                        onClick={() => {
-                          if (confirm(`Delete branch ${b.name}?`)) {
-                            setBranchMenu(false);
-                            act(() => gitDeleteBranch(b.name, false).catch(() => gitDeleteBranch(b.name, true)));
-                          }
-                        }}
-                      >
-                        <IconTrash size={13} />
-                      </button>
-                    </span>
-                  )}
-                </div>
-              ))}
-              <div className="proj-menu-sep" />
-              <button className="proj-menu-item" onClick={newBranch}>
-                <IconPlus size={15} />
-                <span className="proj-menu-item-name">New Branch…</span>
-              </button>
+            <div className="branch-menu-pop">
+              <BranchMenu onClose={() => setBranchMenu(false)} />
             </div>
           </>
         )}
@@ -398,12 +362,15 @@ export function GitPanel() {
                   </span>
                 </div>
                 {conflicts.map((f) => (
-                  <div key={'c:' + f.path} className="git-file conflict" onClick={() => openDiff(f, 'working')} title={f.path}>
+                  <div key={'c:' + f.path} className="git-file conflict" onClick={() => openDiff(f)} title={f.path}>
                     <span className="git-badge u">U</span>
                     <FileIcon name={baseOf(f.path)} />
                     <span className="git-file-name">{baseOf(f.path)}</span>
                     <span className="git-file-dir">{dirOf(f.path)}</span>
                     <span className="git-file-actions" onClick={(e) => e.stopPropagation()}>
+                      <button className="link" title="3-way merge editor" onClick={() => openMerge(f.path)}>
+                        Merge
+                      </button>
                       <button className="link" title="Take current branch's version" onClick={() => act(() => gitResolve(f.path, 'ours'))}>
                         Ours
                       </button>
@@ -416,9 +383,8 @@ export function GitPanel() {
               </div>
             )}
 
-            <Group title="Staged" list={staged} group="staged" onAll={() => act(gitUnstageAll)} allLabel="Unstage all" />
-            <Group title="Changes" list={unstaged} group="work" onAll={() => act(gitStageAll)} allLabel="Stage all" />
-            <Group title="Untracked" list={untracked} group="work" onAll={() => act(() => gitStage(untracked.map((f) => f.path)))} allLabel="Add all" />
+            <Group title="Changes" list={changes} />
+            <Group title="Unversioned Files" list={untracked} />
           </div>
 
           <div className="git-commit">
@@ -427,15 +393,25 @@ export function GitPanel() {
               placeholder="Commit message  (Ctrl/Cmd+Enter)"
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commit();
+                if (
+                  e.key === 'Enter' &&
+                  (e.metaKey || e.ctrlKey) &&
+                  !(busy || !message.trim() || selectedCount === 0 || conflicts.length > 0)
+                )
+                  commit();
               }}
             />
             <div className="git-commit-actions">
-              <span className="muted">{staged.length} staged</span>
-              <button className="primary" disabled={busy || !message.trim() || staged.length === 0} onClick={commit}>
+              <span className="muted">{selectedCount} selected</span>
+              <button
+                className="primary"
+                disabled={busy || !message.trim() || selectedCount === 0 || conflicts.length > 0}
+                onClick={commit}
+              >
                 Commit
               </button>
             </div>
+            {conflicts.length > 0 && <div className="git-hint">Resolve conflicts before committing.</div>}
           </div>
         </>
       ) : (

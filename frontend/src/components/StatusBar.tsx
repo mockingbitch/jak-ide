@@ -48,10 +48,10 @@ export function StatusBar() {
         {dirty && <span className="seg dot" title="Unsaved changes">●</span>}
       </div>
       <div className="right">
-        {git.repo && git.branch && (
+        {git.repo && (git.branch || git.detached) && (
           <span className="seg btn" title="Version control — click to open" onClick={() => selectLeftView('git')}>
             <IconBranch size={13} />
-            {git.branch}
+            {git.branch ?? 'detached'}
             {!!git.ahead && <span className="git-ab">↑{git.ahead}</span>}
             {!!git.behind && <span className="git-ab">↓{git.behind}</span>}
           </span>

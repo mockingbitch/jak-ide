@@ -45,6 +45,7 @@ export function ChatPanel() {
   const recordChange = useStore((s) => s.recordChange);
   const clearChange = useStore((s) => s.clearChange);
   const clearAllChanges = useStore((s) => s.clearAllChanges);
+  const bumpGitRefresh = useStore((s) => s.bumpGitRefresh);
   const changes = useStore((s) => s.changes);
   const file = useStore((s) => s.tabs.find((t) => t.path === s.activePath) ?? null);
 
@@ -159,6 +160,7 @@ export function ChatPanel() {
     } finally {
       setBusy(false);
       scroll();
+      bumpGitRefresh(); // the assistant may have edited files → refresh git status
     }
   };
 

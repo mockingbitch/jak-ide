@@ -20,6 +20,7 @@ function Svg({ size = 16, children, ...rest }: P & { children: React.ReactNode }
       strokeLinejoin="round"
       aria-hidden="true"
       {...rest}
+      style={{ display: 'block', flex: '0 0 auto' }}
     >
       {children}
     </svg>
@@ -128,6 +129,19 @@ export const IconBranch = (p: P) => (
 export const IconArrowDown = (p: P) => (
   <Svg {...p}>
     <path d="M12 5v13M6 12l6 6 6-6" />
+  </Svg>
+);
+
+export const IconPencil = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 20h4L18 10l-4-4L4 16z" />
+    <path d="M13.5 6.5l4 4" />
+  </Svg>
+);
+
+export const IconMenu = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 7h16M4 12h16M4 17h16" />
   </Svg>
 );
 

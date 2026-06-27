@@ -12,15 +12,10 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { SearchEverywhere } from './components/SearchEverywhere';
 import { ProjectMenu } from './components/ProjectMenu';
 import { GitPanel } from './components/GitPanel';
-import {
-  IconProject,
-  IconSearch,
-  IconSettings,
-  IconAI,
-  IconTerminal,
-  IconRun,
-  IconBranch,
-} from './components/icons';
+import { MainMenu } from './components/MainMenu';
+import { BranchWidget } from './components/BranchWidget';
+import { FolderPicker } from './components/FolderPicker';
+import { IconProject, IconSearch, IconSettings, IconAI, IconTerminal, IconBranch } from './components/icons';
 
 export default function App() {
   const layout = useStore((s) => s.layout);
@@ -30,12 +25,18 @@ export default function App() {
   const setGit = useStore((s) => s.setGit);
   const setGitFiles = useStore((s) => s.setGitFiles);
   const projectRoot = useStore((s) => s.projectRoot);
+  const gitRefreshSeq = useStore((s) => s.gitRefreshSeq);
+  const bumpGitRefresh = useStore((s) => s.bumpGitRefresh);
   const setAuth = useStore((s) => s.setAuth);
   const setShells = useStore((s) => s.setShells);
   const setFonts = useStore((s) => s.setFonts);
   const selectLeftView = useStore((s) => s.selectLeftView);
   const toggleRight = useStore((s) => s.toggleRight);
   const toggleBottom = useStore((s) => s.toggleBottom);
+  const folderPickerOpen = useStore((s) => s.folderPickerOpen);
+  const openFolderPicker = useStore((s) => s.openFolderPicker);
+  const closeFolderPicker = useStore((s) => s.closeFolderPicker);
+  const switchProject = useStore((s) => s.switchProject);
   const resizeLeft = useStore((s) => s.resizeLeft);
   const resizeRight = useStore((s) => s.resizeRight);
   const resizeBottom = useStore((s) => s.resizeBottom);
@@ -68,11 +69,23 @@ export default function App() {
     if (!projectRoot) return;
     gitStatus()
       .then((st) => {
-        setGit({ repo: st.repo, branch: st.branch, ahead: st.ahead, behind: st.behind, changed: st.files.length });
+        setGit({ repo: st.repo, branch: st.branch, ahead: st.ahead, behind: st.behind, changed: st.files.length, detached: st.detached });
         setGitFiles(st.files);
       })
       .catch(() => {});
-  }, [projectRoot, setGit, setGitFiles]);
+  }, [projectRoot, gitRefreshSeq, setGit, setGitFiles]);
+
+  // Refresh git when the window regains focus (catches changes made elsewhere).
+  useEffect(() => {
+    const onFocus = () => bumpGitRefresh();
+    const onVis = () => document.visibilityState === 'visible' && bumpGitRefresh();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [bumpGitRefresh]);
 
   // Global shortcut: Cmd/Ctrl+P opens Search Everywhere (quick file open).
   // (Ctrl/Cmd+K is left to Monaco, which uses it as a chord prefix.)
@@ -88,30 +101,28 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const openTerminal = () => {
-    if (!layout.bottomOpen) toggleBottom();
-  };
-
   return (
     <div className="ide">
       {/* ---- title bar ---- */}
       <div className="titlebar">
         <div className="tb-left">
+          <MainMenu
+            onSettings={() => setSettingsOpen(true)}
+            onSearch={() => setFinderOpen(true)}
+            onOpenFolder={openFolderPicker}
+          />
           <ProjectMenu />
+          <BranchWidget />
         </div>
 
-        <div className="tb-center">
-          <button className="search-pill" onClick={() => setFinderOpen(true)} title="Search Everywhere">
-            <IconSearch size={15} />
-            <span className="label">Search files…</span>
-            <span className="search-kbd">Ctrl P</span>
-          </button>
-        </div>
+        <div className="tb-center" />
 
         <div className="tb-right">
-          <button className="run-btn" onClick={openTerminal} title="Open terminal to run commands">
-            <IconRun size={15} className="ico-run" />
-            Run
+          <button className="tb-icon-btn" onClick={toggleRight} title="AI Assistant" aria-pressed={layout.rightOpen}>
+            <IconAI size={17} />
+          </button>
+          <button className="tb-icon-btn" onClick={() => setFinderOpen(true)} title="Search Everywhere (Ctrl P)">
+            <IconSearch size={17} />
           </button>
           <button className="tb-icon-btn" onClick={() => setSettingsOpen(true)} title="Settings">
             <IconSettings size={17} />
@@ -136,16 +147,13 @@ export default function App() {
           >
             <IconBranch size={18} />
           </ActivityButton>
-          <ActivityButton label="Search Everywhere" active={false} onClick={() => setFinderOpen(true)}>
-            <IconSearch size={18} />
-          </ActivityButton>
           <div className="activity-spacer" />
           <ActivityButton label="Settings" active={false} onClick={() => setSettingsOpen(true)}>
             <IconSettings size={18} />
           </ActivityButton>
         </div>
 
-        <div className="ide-main">
+        <div className={'ide-main' + (layout.bottomOpen ? '' : ' no-bottom')}>
           <div className="ide-panes">
             {layout.leftOpen && (
               <>
@@ -202,6 +210,14 @@ export default function App() {
 
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
       {finderOpen && <SearchEverywhere onClose={() => setFinderOpen(false)} />}
+      {folderPickerOpen && (
+        <FolderPicker
+          onClose={closeFolderPicker}
+          onPick={(p) => {
+            switchProject(p).catch((e) => alert('Could not open project: ' + (e as Error).message));
+          }}
+        />
+      )}
     </div>
   );
 }

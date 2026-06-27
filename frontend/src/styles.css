@@ -23,7 +23,8 @@
   --radius: 7px;
   --radius-sm: 6px;
   --radius-xs: 4px;
-  --radius-lg: 12px;
+  --radius-lg: 10px;
+  --gap: 5px; /* spacing between floating tool-window cards (New UI) */
 
   --ui-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
@@ -237,6 +238,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .tb-icon-btn {
   width: 30px;
   height: 30px;
+  padding: 0;
   display: grid;
   place-items: center;
   background: transparent;
@@ -250,6 +252,82 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   .search-kbd {
     display: none;
   }
+}
+
+/* ---- title-bar main menu (hamburger) ---- */
+.main-menu-wrap {
+  position: relative;
+}
+.main-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 110;
+  min-width: 220px;
+  padding: 4px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+.main-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  color: var(--fg);
+  font-size: 13px;
+}
+.main-menu button:hover {
+  background: var(--hover);
+  border: none;
+}
+.main-menu .kbd {
+  font-size: 10.5px;
+  color: var(--fg-dim);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 1px 5px;
+}
+
+/* ---- title-bar branch (VCS) widget ---- */
+.vcs-widget-wrap {
+  position: relative;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.vcs-widget {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  max-width: 280px;
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  font-size: 12.5px;
+}
+.vcs-widget:hover {
+  background: var(--hover);
+  border-color: var(--border);
+}
+.vcs-branch {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vcs-caret {
+  color: var(--fg-dim);
+  flex: 0 0 auto;
 }
 .tb-icon-btn:hover {
   background: var(--hover);
@@ -508,59 +586,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   font-size: 11px;
   margin-left: 2px;
 }
-.git-branch-menu {
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 6px;
-  z-index: 110;
-  width: 280px;
-  max-width: 92%;
-  padding: 6px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-}
-.git-branch-row {
-  display: flex;
-  align-items: center;
-  border-radius: var(--radius-sm);
-}
-.git-branch-row:hover {
-  background: var(--hover);
-}
-.git-branch-pick {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border: none;
-  background: transparent;
-  color: var(--fg);
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.git-branch-row.current .git-branch-pick {
-  color: var(--accent);
-}
-.git-branch-check {
-  width: 14px;
-  flex: 0 0 auto;
-  display: inline-flex;
-  color: var(--accent);
-}
-.git-branch-row-actions {
-  display: none;
-  gap: 2px;
-  padding-right: 4px;
-}
-.git-branch-row:hover .git-branch-row-actions {
-  display: flex;
-}
 .git-tabs {
   display: flex;
   align-items: center;
@@ -780,6 +805,127 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   padding: 0;
 }
 
+/* ---- commit checkboxes (PhpStorm-style file selection) ---- */
+.git-check {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+.git-group-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.git-hint {
+  font-size: 11px;
+  color: var(--fg-dim);
+  padding: 4px 2px 0;
+}
+
+/* ---- branch management popup ---- */
+.branch-menu-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 6px;
+  z-index: 110;
+  width: 300px;
+  max-width: 92vw;
+  padding: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  max-height: 70vh;
+  overflow: auto;
+}
+.branch-menu-actions {
+  display: flex;
+  gap: 6px;
+  padding: 2px 4px 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.branch-menu-actions .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.branch-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  color: var(--fg);
+  font-size: 13px;
+}
+.branch-menu-item:hover:not(:disabled) {
+  background: var(--hover);
+  border: none;
+}
+.branch-menu-item.new {
+  color: var(--accent);
+}
+.branch-menu-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-dim);
+  padding: 8px 8px 4px;
+}
+.branch-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+}
+.branch-row:hover {
+  background: var(--hover);
+}
+.branch-row.current .branch-pick {
+  color: var(--accent);
+  font-weight: 600;
+}
+.branch-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+.branch-check {
+  width: 14px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--accent);
+}
+.branch-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.branch-row-actions {
+  display: none;
+  gap: 2px;
+  padding-right: 4px;
+  flex: 0 0 auto;
+}
+.branch-row:hover .branch-row-actions {
+  display: flex;
+}
+
 /* ---- git diff bar (editor area) ---- */
 .git-diff-bar {
   display: flex;
@@ -790,6 +936,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   flex: 0 0 auto;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
   font-size: 12.5px;
 }
 
@@ -967,6 +1114,128 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   color: var(--fg-dim);
 }
 
+/* ---- 3-way merge editor ---- */
+.merge-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 38px;
+  padding: 0 6px 0 12px;
+  flex: 0 0 auto;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  font-size: 12.5px;
+}
+.merge-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+.merge-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(224, 108, 117, 0.15);
+  color: var(--danger);
+}
+.merge-count.done {
+  background: rgba(95, 184, 101, 0.16);
+  color: var(--run-green);
+}
+.merge-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.merge-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.merge-result {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+.merge-conflicts {
+  width: 320px;
+  flex: 0 0 auto;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg-2);
+  padding: 8px;
+}
+.merge-conflict {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.merge-conflict-head {
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-dim);
+  background: var(--bg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.merge-side {
+  padding: 6px 9px;
+  border-top: 1px solid var(--border);
+}
+.merge-side-label {
+  font-size: 10.5px;
+  color: var(--fg-dim);
+  margin-bottom: 4px;
+}
+.merge-side.ours .merge-side-label {
+  color: #4d9fff;
+}
+.merge-side.theirs .merge-side-label {
+  color: var(--run-green);
+}
+.merge-side pre {
+  margin: 0 0 6px;
+  max-height: 140px;
+  overflow: auto;
+  background: var(--editor-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 6px 8px;
+  font-family: var(--code-font, ui-monospace, monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.merge-both {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 6px;
+}
+.merge-clean {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--run-green);
+}
+.merge-clean p {
+  color: var(--fg-dim);
+  margin: 0;
+}
+
 .ide-body {
   flex: 1;
   display: flex;
@@ -984,12 +1253,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   padding: 6px 0;
   gap: 4px;
 }
-.activity-left {
-  border-right: 1px solid var(--border);
-}
-.activity-right {
-  border-left: 1px solid var(--border);
-}
+/* Activity bars are part of the frame; the card gap provides the separation. */
 .activity-spacer {
   flex: 1;
 }
@@ -997,6 +1261,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   position: relative;
   width: 30px;
   height: 30px;
+  padding: 0;
   display: grid;
   place-items: center;
   background: transparent;
@@ -1009,27 +1274,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   border: none;
   color: var(--fg);
 }
+/* New UI 2024 selected tool-window button: a filled rounded square, no stripe. */
 .activity-btn.active {
   background: var(--accent-soft);
-  color: var(--fg);
-}
-.activity-btn.active::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 18px;
-  background: var(--accent);
-}
-/* Stripe sits on the bar's inner edge — the side the tool window opens toward. */
-.activity-left .activity-btn.active::before {
-  right: -5px;
-  border-radius: 2px 0 0 2px;
-}
-.activity-right .activity-btn.active::before {
-  left: -5px;
-  border-radius: 0 2px 2px 0;
+  color: var(--accent);
 }
 
 /* ---- bottom tool-window bar ---- */
@@ -1041,7 +1289,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   gap: 4px;
   padding: 0 6px;
   background: var(--bg);
-  border-top: 1px solid var(--border);
 }
 .bottom-btn {
   position: relative;
@@ -1073,12 +1320,20 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  background: var(--bg); /* frame behind the floating cards */
 }
 .ide-panes {
   flex: 1;
   display: flex;
   min-height: 0;
+  background: var(--bg); /* frame shows through the gaps */
+  padding: var(--gap);
+  padding-bottom: 0; /* bottom gap is the horizontal splitter, or .no-bottom below */
 }
+.ide-main.no-bottom .ide-panes {
+  padding-bottom: var(--gap);
+}
+/* Each tool window / the editor is a floating, rounded, bordered card. */
 .tw {
   background: var(--bg-2);
   display: flex;
@@ -1086,20 +1341,16 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  border: 1px solid transparent; /* cards float on the frame; gap + bg do the separating */
+  border-radius: var(--radius);
 }
 .tw-left,
 .tw-right,
 .tw-bottom {
   flex: 0 0 auto;
 }
-.tw-left {
-  border-right: 1px solid var(--border);
-}
-.tw-right {
-  border-left: 1px solid var(--border);
-}
 .tw-bottom {
-  border-top: 1px solid var(--border);
+  margin: 0 var(--gap) var(--gap); /* left / right / bottom gap; top gap = the splitter */
 }
 .ide-editor {
   flex: 1;
@@ -1107,36 +1358,55 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   min-width: 0;
   min-height: 0;
   background: var(--editor-bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  /* no overflow:hidden — Monaco autocomplete/find popups must not be clipped */
+}
+.ide-editor > .editor {
+  border-radius: var(--radius);
 }
 
 /* ---- splitters ---- */
+/* The splitter IS the gap between cards: transparent (frame shows), with a thin
+   accent line appearing on hover/drag to signal it is draggable. */
 .splitter {
-  flex: 0 0 auto;
-  box-sizing: content-box; /* keep the 1px painted line; padding is only the hit area */
+  flex: 0 0 var(--gap);
+  position: relative;
   background: transparent;
-  z-index: 5;
-  transition: background 0.12s ease;
+  z-index: 6;
 }
-/* The visible 1px divider lives on the panels (.tw-left/right/bottom borders);
-   the splitter is just a transparent grab strip that lights up on hover/drag. */
 .splitter.v {
-  width: 1px;
-  margin: 0 -3px;
-  padding: 0 3px;
-  background-clip: content-box;
-  background-color: transparent;
   cursor: col-resize;
 }
 .splitter.h {
-  height: 1px;
-  margin: -3px 0;
-  padding: 3px 0;
-  background-clip: content-box;
-  background-color: transparent;
   cursor: row-resize;
 }
-.splitter:hover {
-  background-color: var(--accent);
+.splitter.v::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.splitter.h::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.splitter:hover::after {
+  background: var(--accent);
 }
 
 /* ---- tool window header ---- */
@@ -1232,36 +1502,41 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 }
 .tabbar {
   display: flex;
-  align-items: stretch;
-  height: 35px;
+  align-items: center;
+  height: 38px;
   flex: 0 0 auto;
-  background: var(--bg);
+  background: var(--editor-bg);
   border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
   overflow-x: auto;
   overflow-y: hidden;
+  padding: 0 6px;
+  gap: 3px;
 }
 .tab {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 0 8px 0 12px;
+  height: 28px;
+  padding: 0 6px 0 10px;
   cursor: pointer;
   color: var(--fg-dim);
   white-space: nowrap;
-  border-right: 1px solid var(--border);
+  border: none;
+  border-radius: var(--radius-sm);
 }
 .tab:hover {
   background: var(--hover);
 }
 .tab.active {
-  background: var(--editor-bg);
+  background: var(--bg-3);
   color: var(--fg);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  box-shadow: none;
 }
 .tab.placeholder {
   color: var(--fg-dim);
   cursor: default;
-  padding: 0 12px;
+  padding: 0 10px;
 }
 .tab .ficon {
   width: 15px;
@@ -1841,9 +2116,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   flex: 0 0 auto;
   width: 16px;
   height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
 }
 .fbadge {
   width: auto;

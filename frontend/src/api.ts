@@ -101,10 +101,16 @@ export const gitUnstageAll = () => POST('/api/git/unstage', { all: true }).then(
 export const gitDiscard = (paths: string[]) => POST('/api/git/discard', { paths }).then(jsonOrThrow);
 export const gitCommit = (message: string, amend = false): Promise<{ ok: boolean; output: string }> =>
   POST('/api/git/commit', { message, amend }).then(jsonOrThrow);
+/** PhpStorm-style: commit exactly the given (checked) files. */
+export const gitCommitFiles = (message: string, paths: string[]): Promise<{ ok: boolean; output: string }> =>
+  POST('/api/git/commit', { message, paths }).then(jsonOrThrow);
 
-export const gitCreateBranch = (name: string, checkout = true) =>
-  POST('/api/git/branch', { name, checkout }).then(jsonOrThrow);
+export const gitCreateBranch = (name: string, checkout = true, startPoint?: string) =>
+  POST('/api/git/branch', { name, checkout, startPoint }).then(jsonOrThrow);
 export const gitCheckout = (name: string) => POST('/api/git/checkout', { name }).then(jsonOrThrow);
+export const gitCheckoutRemote = (remote: string) => POST('/api/git/checkout-remote', { remote }).then(jsonOrThrow);
+export const gitRenameBranch = (oldName: string, newName: string) =>
+  POST('/api/git/branch/rename', { oldName, newName }).then(jsonOrThrow);
 export const gitDeleteBranch = (name: string, force = false) =>
   POST('/api/git/branch/delete', { name, force }).then(jsonOrThrow);
 export const gitMerge = (name: string): Promise<{ ok: boolean; output: string }> =>
@@ -121,6 +127,15 @@ export const gitCommitDiff = (hash: string, path: string): Promise<GitFileDiff> 
   fetch(`/api/git/commit-diff?hash=${encodeURIComponent(hash)}&path=${encodeURIComponent(path)}`).then(jsonOrThrow);
 export const gitResolve = (path: string, side: 'ours' | 'theirs') =>
   POST('/api/git/resolve', { path, side }).then(jsonOrThrow);
+export interface GitConflict {
+  path: string;
+  base: string;
+  ours: string;
+  theirs: string;
+  working: string;
+}
+export const gitConflict = (path: string): Promise<GitConflict> =>
+  fetch(`/api/git/conflict?path=${encodeURIComponent(path)}`).then(jsonOrThrow);
 /** SSE URL for streaming clone progress (consumed with fetch + ReadableStream). */
 export const gitCloneStreamUrl = (url: string, parent: string, name?: string) =>
   `/api/git/clone-stream?url=${encodeURIComponent(url)}&parent=${encodeURIComponent(parent)}` +

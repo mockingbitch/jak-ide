@@ -218,7 +218,7 @@ function promptText({ title, label, value = '', password = false }) {
 
 // ---------------------------------------------------------------------------
 app.whenReady().then(() => {
-  buildMenu();
+  Menu.setApplicationMenu(null); // no native File/View/Help bar — actions live in the in-app hamburger
   createWindow();
 });
 
@@ -234,6 +234,14 @@ ipcMain.handle('jakide:pick-folder', async () => {
     /* ignore */
   }
   return res.filePaths[0];
+});
+
+// Hamburger menu actions that need the main process (replace the old native menu).
+ipcMain.handle('jakide:set-api-key', async () => {
+  await setApiKey();
+});
+ipcMain.handle('jakide:toggle-devtools', () => {
+  if (mainWindow) mainWindow.webContents.toggleDevTools();
 });
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -49,6 +49,12 @@ gitRouter.get('/commit-diff', h(async (req, res) => {
   res.json(await git.commitDiff(hash, p));
 }));
 
+gitRouter.get('/conflict', h(async (req, res) => {
+  const p = String(req.query.path ?? '');
+  if (!p) return res.status(400).json({ error: 'path is required' });
+  res.json(await git.conflict(p));
+}));
+
 // --- repo lifecycle ------------------------------------------------------
 gitRouter.post('/init', h(async (_req, res) => {
   await git.init();
@@ -139,17 +145,20 @@ gitRouter.post('/resolve', h(async (req, res) => {
 }));
 
 gitRouter.post('/commit', h(async (req, res) => {
-  const { message, amend } = req.body ?? {};
+  const { message, amend, paths } = req.body ?? {};
   if (!message || !String(message).trim()) return res.status(400).json({ error: 'commit message is required' });
-  const out = await git.commit(String(message), Boolean(amend));
+  const out =
+    Array.isArray(paths) && paths.length
+      ? await git.commitFiles(String(message), paths)
+      : await git.commit(String(message), Boolean(amend));
   res.json({ ok: true, output: out });
 }));
 
 // --- branches ------------------------------------------------------------
 gitRouter.post('/branch', h(async (req, res) => {
-  const { name, checkout } = req.body ?? {};
+  const { name, checkout, startPoint } = req.body ?? {};
   if (!name) return res.status(400).json({ error: 'name is required' });
-  await git.createBranch(name, checkout !== false);
+  await git.createBranch(name, checkout !== false, typeof startPoint === 'string' ? startPoint : undefined);
   res.json({ ok: true });
 }));
 
@@ -157,6 +166,20 @@ gitRouter.post('/checkout', h(async (req, res) => {
   const { name } = req.body ?? {};
   if (!name) return res.status(400).json({ error: 'name is required' });
   await git.checkout(name);
+  res.json({ ok: true });
+}));
+
+gitRouter.post('/checkout-remote', h(async (req, res) => {
+  const { remote } = req.body ?? {};
+  if (!remote) return res.status(400).json({ error: 'remote is required' });
+  await git.checkoutRemote(remote);
+  res.json({ ok: true });
+}));
+
+gitRouter.post('/branch/rename', h(async (req, res) => {
+  const { oldName, newName } = req.body ?? {};
+  if (!oldName || !newName) return res.status(400).json({ error: 'oldName and newName are required' });
+  await git.renameBranch(oldName, newName);
   res.json({ ok: true });
 }));
 

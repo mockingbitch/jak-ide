@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { openProjectApi, getTree, getProjects } from './api';
 import type {
   TreeNode,
   ChatMessage,
@@ -72,11 +73,13 @@ interface State {
   model: string;
   projectRoot: string;
   recents: RecentProject[];
-  git: { repo: boolean; branch: string | null; ahead: number; behind: number; changed: number };
+  git: { repo: boolean; branch: string | null; ahead: number; behind: number; changed: number; detached: boolean };
   gitFiles: GitFileEntry[];
   gitDiff: GitFileDiff | null;
   gitBlame: { path: string; lines: BlameLine[] } | null;
   gitHistory: { path: string; commits: GitCommit[] } | null;
+  mergeView: { path: string; base: string; ours: string; theirs: string; working: string } | null;
+  gitRefreshSeq: number; // bumped to ask git consumers (App, GitPanel) to re-fetch
   auth: {
     method: 'apikey' | 'oauth' | 'claude-code' | 'none';
     hasAuth: boolean;
@@ -115,6 +118,10 @@ interface State {
   setMeta: (m: { hasApiKey: boolean; model: string; projectRoot?: string }) => void;
   setProjects: (current: string, recents: RecentProject[]) => void;
   resetWorkspace: () => void;
+  folderPickerOpen: boolean;
+  openFolderPicker: () => void;
+  closeFolderPicker: () => void;
+  switchProject: (dir: string) => Promise<void>;
   setAuth: (a: State['auth']) => void;
   setAuthBusy: (b: boolean) => void;
 
@@ -141,6 +148,9 @@ interface State {
   closeGitBlame: () => void;
   openGitHistory: (h: { path: string; commits: GitCommit[] }) => void;
   closeGitHistory: () => void;
+  openMergeView: (m: { path: string; base: string; ours: string; theirs: string; working: string }) => void;
+  closeMergeView: () => void;
+  bumpGitRefresh: () => void;
 
   toggleLeft: () => void;
   toggleRight: () => void;
@@ -160,7 +170,7 @@ function appendTerminal(s: State, shellPath: string) {
   return { termSeq: seq, terminals: [...s.terminals, { id, shellPath, title }], activeTerminalId: id };
 }
 
-export const useStore = create<State>((set) => ({
+export const useStore = create<State>((set, get) => ({
   tree: null,
   tabs: [],
   activePath: null,
@@ -171,11 +181,14 @@ export const useStore = create<State>((set) => ({
   model: '',
   projectRoot: '',
   recents: [],
-  git: { repo: false, branch: null, ahead: 0, behind: 0, changed: 0 },
+  folderPickerOpen: false,
+  git: { repo: false, branch: null, ahead: 0, behind: 0, changed: 0, detached: false },
   gitFiles: [],
   gitDiff: null,
   gitBlame: null,
   gitHistory: null,
+  mergeView: null,
+  gitRefreshSeq: 0,
   auth: { method: 'none', hasAuth: false, antInstalled: false },
   authBusy: false,
   shells: [],
@@ -243,6 +256,25 @@ export const useStore = create<State>((set) => ({
   setMeta: ({ hasApiKey, model, projectRoot }) =>
     set(projectRoot !== undefined ? { hasApiKey, model, projectRoot } : { hasApiKey, model }),
   setProjects: (current, recents) => set({ projectRoot: current, recents }),
+  openFolderPicker: () => set({ folderPickerOpen: true }),
+  closeFolderPicker: () => set({ folderPickerOpen: false }),
+  // Shared project switch: point backend at `dir`, reset the workspace, reload tree + recents.
+  switchProject: async (dir) => {
+    await openProjectApi(dir);
+    get().resetWorkspace();
+    set({ folderPickerOpen: false });
+    try {
+      set({ tree: await getTree() });
+    } catch {
+      /* empty / unreadable project */
+    }
+    try {
+      const p = await getProjects();
+      get().setProjects(p.current, p.recents);
+    } catch {
+      /* ignore */
+    }
+  },
   resetWorkspace: () =>
     set({
       tabs: [],
@@ -256,19 +288,23 @@ export const useStore = create<State>((set) => ({
       gitDiff: null,
       gitBlame: null,
       gitHistory: null,
+      mergeView: null,
       gitFiles: [],
-      git: { repo: false, branch: null, ahead: 0, behind: 0, changed: 0 },
+      git: { repo: false, branch: null, ahead: 0, behind: 0, changed: 0, detached: false },
     }),
 
   setGit: (git) => set({ git }),
   setGitFiles: (gitFiles) => set({ gitFiles }),
-  // The three editor-area git views are mutually exclusive.
-  openGitDiff: (gitDiff) => set({ gitDiff, gitBlame: null, gitHistory: null }),
+  // The editor-area git views are mutually exclusive.
+  openGitDiff: (gitDiff) => set({ gitDiff, gitBlame: null, gitHistory: null, mergeView: null }),
   closeGitDiff: () => set({ gitDiff: null }),
-  openGitBlame: (gitBlame) => set({ gitBlame, gitDiff: null, gitHistory: null }),
+  openGitBlame: (gitBlame) => set({ gitBlame, gitDiff: null, gitHistory: null, mergeView: null }),
   closeGitBlame: () => set({ gitBlame: null }),
-  openGitHistory: (gitHistory) => set({ gitHistory, gitDiff: null, gitBlame: null }),
+  openGitHistory: (gitHistory) => set({ gitHistory, gitDiff: null, gitBlame: null, mergeView: null }),
   closeGitHistory: () => set({ gitHistory: null }),
+  openMergeView: (mergeView) => set({ mergeView, gitDiff: null, gitBlame: null, gitHistory: null }),
+  closeMergeView: () => set({ mergeView: null }),
+  bumpGitRefresh: () => set((s) => ({ gitRefreshSeq: s.gitRefreshSeq + 1 })),
   setAuth: (auth) => set({ auth }),
   setAuthBusy: (authBusy) => set({ authBusy }),
 

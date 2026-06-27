@@ -185,18 +185,29 @@ export async function branches(): Promise<{ current: string | null; local: Branc
       return { name, current: head === '*', sha, upstream: upstream || null };
     });
   const remoteOut = await git(['for-each-ref', '--format=%(refname:short)', 'refs/remotes']);
-  const remote = remoteOut.split('\n').filter((b) => b && !b.endsWith('/HEAD'));
+  // Keep only real remote branches (skip the 'origin' / '*/HEAD' symrefs).
+  const remote = remoteOut.split('\n').filter((b) => b && b.includes('/') && !b.endsWith('/HEAD'));
   const current = local.find((b) => b.current)?.name ?? null;
   return { current, local, remote };
 }
 
-export async function createBranch(name: string, checkout = true): Promise<void> {
-  if (checkout) await git(['checkout', '-b', name]);
-  else await git(['branch', name]);
+export async function createBranch(name: string, checkout = true, startPoint?: string): Promise<void> {
+  const args = checkout ? ['checkout', '-b', name] : ['branch', name];
+  if (startPoint) args.push(startPoint);
+  await git(args);
 }
 
 export async function checkout(name: string): Promise<void> {
   await git(['checkout', name]);
+}
+
+/** Check out a remote branch (e.g. 'origin/foo') as a local tracking branch. */
+export async function checkoutRemote(remote: string): Promise<void> {
+  await git(['checkout', '--track', remote]);
+}
+
+export async function renameBranch(oldName: string, newName: string): Promise<void> {
+  await git(['branch', '-m', oldName, newName]);
 }
 
 export async function deleteBranch(name: string, force = false): Promise<void> {
@@ -204,7 +215,16 @@ export async function deleteBranch(name: string, force = false): Promise<void> {
 }
 
 export async function merge(name: string): Promise<string> {
-  return git(['merge', '--no-edit', name]);
+  // A merge that ends in conflicts is a normal, recoverable outcome (not an
+  // error): return its output so the UI can refresh and show the conflicts to
+  // resolve, rather than surfacing a red failure.
+  const r = await run(['merge', '--no-edit', name]);
+  if (r.code !== 0) {
+    const out = r.stdout + r.stderr;
+    if (/CONFLICT|Automatic merge failed|fix conflicts/i.test(out)) return out;
+    throw new GitError(r.stderr.trim() || r.stdout.trim() || 'merge failed', r.code, r.stderr);
+  }
+  return r.stdout;
 }
 
 // ---------------------------------------------------------------------------
@@ -238,10 +258,52 @@ export async function resolve(file: string, side: 'ours' | 'theirs'): Promise<vo
   await git(['add', '--', file]);
 }
 
+export interface Conflict {
+  path: string;
+  base: string; // stage 1 (merge base) — '' for add/add
+  ours: string; // stage 2 (current branch)
+  theirs: string; // stage 3 (incoming)
+  working: string; // working-tree file, with conflict markers
+}
+
+/** The three conflict stages of a file plus the working copy, for a 3-way merge UI. */
+export async function conflict(file: string): Promise<Conflict> {
+  const [base, ours, theirs] = await Promise.all([showAt(':1', file), showAt(':2', file), showAt(':3', file)]);
+  let working = '';
+  try {
+    const abs = resolveSafe(file);
+    if (await fs.pathExists(abs)) working = await fs.readFile(abs, 'utf8');
+  } catch {
+    working = '';
+  }
+  return { path: file, base, ours, theirs, working };
+}
+
 export async function commit(message: string, amend = false): Promise<string> {
   const args = ['commit', '-m', message];
   if (amend) args.push('--amend');
   return git(args);
+}
+
+/**
+ * Commit exactly the given files (PhpStorm-style checkbox commit). Stages the
+ * listed paths (so untracked ones are included) then does a partial commit of
+ * just those paths — other staged changes are left untouched.
+ */
+export async function commitFiles(message: string, paths: string[]): Promise<string> {
+  if (!paths.length) throw new GitError('No files selected to commit', 1, '');
+  // Stage only paths that still exist on disk. A staged rename's source (orig)
+  // no longer exists — `git add` would fail on it, and it is already in the
+  // index — but it must stay in the commit pathspec so the rename is recorded.
+  const toAdd = paths.filter((p) => {
+    try {
+      return fs.existsSync(resolveSafe(p));
+    } catch {
+      return false;
+    }
+  });
+  if (toAdd.length) await git(['add', '--', ...toAdd]);
+  return git(['commit', '-m', message, '--', ...paths]);
 }
 
 // ---------------------------------------------------------------------------
