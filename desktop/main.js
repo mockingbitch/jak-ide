@@ -1,6 +1,9 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const net = require('node:net');
+const http = require('node:http');
+const { spawn } = require('node:child_process');
 
 const DEV_URL = process.env.JAKIDE_DEV_URL || '';
 const isDev = Boolean(DEV_URL);
@@ -42,19 +45,90 @@ function defaultProjectRoot() {
 }
 
 // ---------------------------------------------------------------------------
-// Embedded backend (packaged mode). In dev the backend runs separately (tsx).
+// Embedded backends (packaged mode). The Rust core is the front door; the Node
+// bundle serves the static renderer + the not-yet-ported routes (ai/auth/run)
+// that the core reverse-proxies to. In dev these run separately (see dev-core.mjs).
 // ---------------------------------------------------------------------------
-async function startEmbeddedBackend() {
+let coreProc = null;
+
+function findFreePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.unref();
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
+    });
+  });
+}
+
+function waitForHealth(port, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  return new Promise((resolve, reject) => {
+    const tick = () => {
+      const req = http.get({ host: '127.0.0.1', port, path: '/api/health', timeout: 1000 }, (res) => {
+        res.resume();
+        if (res.statusCode === 200) resolve();
+        else retry();
+      });
+      req.on('error', retry);
+      req.on('timeout', () => {
+        req.destroy();
+        retry();
+      });
+    };
+    const retry = () => (Date.now() > deadline ? reject(new Error('core health timeout')) : setTimeout(tick, 200));
+    tick();
+  });
+}
+
+async function startBackends() {
   const cfg = readConfig();
-  process.env.PROJECT_ROOT = cfg.projectRoot || defaultProjectRoot();
+  const projectRoot = cfg.projectRoot || defaultProjectRoot();
+  // Node reads these from process.env (config.ts) at require() time.
+  process.env.PROJECT_ROOT = projectRoot;
   if (cfg.apiKey) process.env.ANTHROPIC_API_KEY = cfg.apiKey;
   if (cfg.model) process.env.ANTHROPIC_MODEL = cfg.model;
-  process.env.PORT = '0';
 
-  // Required lazily so the env vars above are in place before config.ts reads them.
+  const staticDir = path.join(__dirname, 'app', 'renderer');
+  const coreBin = path.join(__dirname, 'app', 'bin', process.platform === 'win32' ? 'jakide-core.exe' : 'jakide-core');
+
+  // Start Node on its own port (serves static + ai/auth/run + proxy targets).
+  const nodePort = await findFreePort();
   const { startServer } = require(path.join(__dirname, 'app', 'server.cjs'));
-  const { port } = await startServer({ port: 0, staticDir: path.join(__dirname, 'app', 'renderer') });
-  return port;
+  await startServer({ port: nodePort, staticDir });
+
+  // Without the bundled core binary, fall back to Node as the front door (old behavior).
+  if (!fs.existsSync(coreBin)) return nodePort;
+
+  const corePort = await findFreePort();
+  coreProc = spawn(coreBin, [], {
+    env: {
+      ...process.env,
+      JAKIDE_CORE_PORT: String(corePort),
+      JAKIDE_NODE_PORT: String(nodePort),
+      JAKIDE_DESKTOP: '1',
+      PROJECT_ROOT: projectRoot,
+    },
+    stdio: 'inherit',
+  });
+  coreProc.on('exit', () => {
+    coreProc = null;
+  });
+
+  try {
+    await waitForHealth(corePort);
+    return corePort; // Rust core is up → it is the front door
+  } catch {
+    try {
+      coreProc?.kill();
+    } catch {
+      /* ignore */
+    }
+    coreProc = null;
+    return nodePort; // core failed to start → Node front door
+  }
 }
 
 async function createWindow() {
@@ -82,7 +156,7 @@ async function createWindow() {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     try {
-      serverPort = await startEmbeddedBackend();
+      serverPort = await startBackends();
       await mainWindow.loadURL(`http://127.0.0.1:${serverPort}`);
     } catch (e) {
       dialog.showErrorBox('JakIDE failed to start', String((e && e.stack) || e));
@@ -248,4 +322,13 @@ app.on('activate', () => {
 });
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// Tear down the spawned Rust core when the app exits.
+app.on('will-quit', () => {
+  try {
+    coreProc?.kill();
+  } catch {
+    /* ignore */
+  }
 });

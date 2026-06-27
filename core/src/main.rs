@@ -9,6 +9,7 @@ mod health;
 mod index;
 mod paths;
 mod projects;
+mod proxy;
 mod search;
 mod shells;
 mod state;
@@ -35,6 +36,8 @@ async fn main() {
         .merge(search::router())
         .merge(git::router())
         .merge(terminal::router())
+        // Anything not ported yet (ai/auth/run + static renderer) → Node.
+        .fallback(proxy::handler)
         .with_state(st.clone());
 
     let port: u16 = std::env::var("JAKIDE_CORE_PORT")

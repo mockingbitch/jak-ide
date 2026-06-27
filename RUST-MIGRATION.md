@@ -37,8 +37,18 @@ Ràng buộc số 1: **app luôn hoạt động bình thường ở mọi commit
   đã liệt kê, sai → fallback default). **Bỏ node-pty.** Live-verified: spawn /bin/bash, `echo $((6*7))`→42,
   resize, exit 0, và shell sai → fallback /usr/bin/zsh. Backpressure: bounded channel + `blocking_send` ở
   reader thread → PTY tự throttle khi client chậm (gọn hơn pause/resume thủ công của Node).
-- **4. ⭐ FLIP** — Electron spawn `jakide-core`(`:8787`) + Node(`:8788`); Rust `.fallback()` **proxy HTTP/SSE**
-  cho phần còn lại (ai/auth/run). App giờ chạy trên **Rust**; chỉ ai/auth/run còn ở Node. Smoke test toàn app.
+- **4. ✅ DONE (FLIP)** — Rust core là **front door**; Node là backend cho phần chưa port. `core/src/proxy.rs`:
+  `.fallback()` reverse-proxy mọi request không khớp route native → Node (`JAKIDE_NODE_PORT`), **stream body**
+  nên SSE (`/api/ai/chat`) chảy qua không buffer; static renderer cũng proxy về Node (tới Stage 8 mới cho Rust
+  serve trực tiếp). reqwest (no-TLS, localhost). Desktop wiring:
+  - `main.js`: `startBackends()` chọn 2 free port, chạy Node bundle (static + ai/auth/run), spawn binary core
+    (JAKIDE_CORE_PORT/JAKIDE_NODE_PORT/JAKIDE_DESKTOP=1/PROJECT_ROOT), chờ `/api/health`, load cổng core.
+    Fallback an toàn: thiếu binary core → Node làm front door (hành vi cũ).
+  - `dev`: concurrently chạy `dev-core.mjs` (đọc PROJECT_ROOT từ backend/.env) + Node `PORT=8788` + Vite (proxy
+    →8787) + electron (`wait-on tcp:5173 tcp:8787`). `build:core.mjs` build release + copy vào `app/bin/`.
+  - Verified headless (mô phỏng đúng logic main.js): front door Rust phục vụ native (health desktop:true, files
+    tree) + proxy `/` (index.html static), `/api/auth/status`, và SSE `/api/ai/chat` (frame text→done) qua Node.
+    **Chưa chạy**: GUI Electron + `electron-builder dist` (cần máy có display; user tự verify `npm run dev`/`dist`).
 - **5. run-command** — allowlist + spawn; `POST /api/run-command`. Gỡ fallthrough.
 - **6. auth** — `/api/auth/status|login|logout`: dò CLI `claude`/`ant`, spawn `ant auth login`, đọc token
   `~/.config/anthropic`, method = apikey/oauth/claude-code/none. Gỡ fallthrough.

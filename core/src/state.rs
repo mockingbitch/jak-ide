@@ -25,6 +25,11 @@ pub struct AppState {
     /// Set by the fs watcher; `set_root` pushes the new root so the watcher can
     /// re-target its watches on a project switch. `None` until the watcher spawns.
     watch_tx: RwLock<Option<Sender<PathBuf>>>,
+    /// Node backend port for the reverse-proxy fallthrough (Stage 4). Routes not
+    /// yet ported (ai/auth/run + static) are forwarded here until Node retires.
+    pub node_port: u16,
+    /// Shared HTTP client for the proxy.
+    pub http: reqwest::Client,
 }
 
 impl AppState {
@@ -45,7 +50,14 @@ impl AppState {
             desktop: std::env::var("JAKIDE_DESKTOP").map(|v| v == "1").unwrap_or(false),
             index: Arc::new(FileIndex::open()),
             watch_tx: RwLock::new(None),
+            node_port: std::env::var("JAKIDE_NODE_PORT").ok().and_then(|s| s.parse().ok()).unwrap_or(8788),
+            http: reqwest::Client::new(),
         }
+    }
+
+    /// Base URL of the Node backend the proxy fallthrough forwards to.
+    pub fn node_base(&self) -> String {
+        format!("http://127.0.0.1:{}", self.node_port)
     }
 
     /// Full reindex for a project switch: clear the snapshot first so search never
