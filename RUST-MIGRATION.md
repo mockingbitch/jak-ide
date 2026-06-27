@@ -19,12 +19,18 @@ Ràng buộc số 1: **app luôn hoạt động bình thường ở mọi commit
 
 ## Các stage (mỗi stage: build + cargo test + parity + commit; app vẫn chạy)
 - **0. ✅ DONE** — files / projects / fonts / health (native Rust, parity-tested; chưa live).
-- **1. Index + Search + Watch (SQLite)** — `ignore` walk → SQLite index (path/mtime/size); `notify` cập nhật
-  incremental + đẩy thay đổi tree qua WS; `nucleo` fuzzy tên file; ripgrep libs cho nội dung.
-  Endpoint mới: `GET /api/search/files`, `GET /api/search/text`; nâng `files/tree` đọc từ index.
-  (Đây là phần performance #3.) Verify: cargo test + benchmark.
-- **2. git** — `git2` cho status/branches/log/diff/blame/commit/stage/discard/checkout/merge/conflict;
-  spawn `git` cho fetch/pull/push/clone (clone qua SSE). Parity-test với endpoint git Node (dùng lại repo test).
+- **1. ✅ DONE** — Index + Search + Watch (SQLite). `ignore` walk → SQLite cache (`~/.jakide/index.db`) +
+  in-memory snapshot; `SkimMatcherV2` fuzzy tên file; ripgrep libs (`grep-*`) cho nội dung (binary-detection,
+  line-capped, bounded). `notify` watcher cập nhật incremental (per-dir NonRecursive, bỏ qua node_modules/target;
+  debounce 400ms; re-target khi đổi project). Endpoint: `GET /api/search/files`, `GET /api/search/text`,
+  `POST /api/index/refresh`. 11 cargo test; live-verified (151 files, watcher create/delete ~900ms).
+- **2. ✅ DONE** — git. **Quyết định: spawn `git` cho TẤT CẢ thao tác** (không dùng `git2`/libgit2). Lý do:
+  porcelain output giống hệt Node → JSON contract bất biến; giữ nguyên hành vi credential/offline/editor-safe
+  (`GIT_TERMINAL_PROMPT=0`, `GIT_EDITOR=true`, `GIT_PAGER=cat`); binary gọn hơn (không vendored libgit2).
+  Module `core/src/git/` (exec/ops/clone/mod, mỗi file ≤500 LOC). Đủ 26 endpoint `/api/git/*` kể cả clone-stream
+  (SSE qua axum). Parser test (porcelain v2, blame header, ISO-date không cần crate, repo-name). Live-verified
+  toàn bộ: status/branches/log/diff/blame/commit-diff/remotes + stage/unstage/commit-files/branch/checkout/
+  rename/delete + merge-conflict → conflict (3-way) → resolve, và fetch/pull/push (error shape đúng).
 - **3. terminal** — `portable-pty` + axum WebSocket `/ws/terminal` (start/input/resize → data/exit) +
   `GET /api/terminal/shells`. **Bỏ node-pty.** Test: spawn shell, echo round-trip, resize.
 - **4. ⭐ FLIP** — Electron spawn `jakide-core`(`:8787`) + Node(`:8788`); Rust `.fallback()` **proxy HTTP/SSE**

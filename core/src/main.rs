@@ -4,6 +4,7 @@
 mod error;
 mod files;
 mod fonts;
+mod git;
 mod health;
 mod index;
 mod paths;
@@ -30,6 +31,7 @@ async fn main() {
         .merge(projects::router())
         .merge(fonts::router())
         .merge(search::router())
+        .merge(git::router())
         .with_state(st.clone());
 
     let port: u16 = std::env::var("JAKIDE_CORE_PORT")
