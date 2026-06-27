@@ -1,0 +1,77 @@
+/* ---- editor ---- */
+.editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.tabbar {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  flex: 0 0 auto;
+  background: var(--editor-bg);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 6px;
+  gap: 3px;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 6px 0 10px;
+  cursor: pointer;
+  color: var(--fg-dim);
+  white-space: nowrap;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+.tab:hover {
+  background: var(--hover);
+}
+.tab.active {
+  background: var(--bg-3);
+  color: var(--fg);
+  box-shadow: none;
+}
+.tab.placeholder {
+  color: var(--fg-dim);
+  cursor: default;
+  padding: 0 10px;
+}
+.tab .ficon {
+  width: 15px;
+  height: 15px;
+}
+.tab-name {
+  font-size: 12.5px;
+}
+.tab-dirty {
+  color: var(--fg);
+  width: 8px;
+  font-size: 11px;
+}
+.tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  opacity: 0.7;
+  color: var(--fg-dim);
+}
+.tab-close:hover {
+  opacity: 1;
+  background: var(--hover);
+  border: none;
+  color: var(--fg);
+}

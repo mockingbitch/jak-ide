@@ -1,0 +1,15 @@
+/* ---- generic primary (accent) button ---- */
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+  border-color: var(--accent);
+}

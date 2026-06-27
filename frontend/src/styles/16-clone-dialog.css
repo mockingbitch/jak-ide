@@ -1,0 +1,40 @@
+/* ---- clone dialog ---- */
+.clone-dialog .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.clone-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.clone-field > span {
+  font-size: 11px;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.clone-field input {
+  height: 32px;
+  padding: 0 10px;
+  background: var(--bg-3);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 13px;
+}
+.clone-log {
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  background: var(--editor-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-family: var(--code-font, ui-monospace, monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  color: var(--fg-dim);
+}

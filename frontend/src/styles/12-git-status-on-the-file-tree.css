@@ -1,0 +1,32 @@
+/* ---- git status on the file tree ---- */
+.row-git {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 6px;
+  width: auto;
+  min-width: 0;
+}
+.row-git-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4d9fff;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.row-name.git-m {
+  color: #4d9fff;
+}
+.row-name.git-a,
+.row-name.git-q {
+  color: var(--run-green);
+}
+.row-name.git-d {
+  color: var(--danger);
+}
+.row-name.git-r {
+  color: #c678dd;
+}
+.row-name.git-u {
+  color: var(--danger);
+}

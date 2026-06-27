@@ -1,0 +1,99 @@
+/* ---- branch management popup ---- */
+.branch-menu-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 6px;
+  z-index: 110;
+  width: 300px;
+  max-width: 92vw;
+  padding: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  max-height: 70vh;
+  overflow: auto;
+}
+.branch-menu-actions {
+  display: flex;
+  gap: 6px;
+  padding: 2px 4px 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.branch-menu-actions .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.branch-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  color: var(--fg);
+  font-size: 13px;
+}
+.branch-menu-item:hover:not(:disabled) {
+  background: var(--hover);
+  border: none;
+}
+.branch-menu-item.new {
+  color: var(--accent);
+}
+.branch-menu-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-dim);
+  padding: 8px 8px 4px;
+}
+.branch-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+}
+.branch-row:hover {
+  background: var(--hover);
+}
+.branch-row.current .branch-pick {
+  color: var(--accent);
+  font-weight: 600;
+}
+.branch-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+.branch-check {
+  width: 14px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--accent);
+}
+.branch-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.branch-row-actions {
+  display: none;
+  gap: 2px;
+  padding-right: 4px;
+  flex: 0 0 auto;
+}
+.branch-row:hover .branch-row-actions {
+  display: flex;
+}

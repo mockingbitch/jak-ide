@@ -1,0 +1,89 @@
+/* ---- folder picker modal ---- */
+.folder-picker {
+  width: 560px;
+  max-width: 92vw;
+  height: 60vh;
+  max-height: 560px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+}
+.fp-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.fp-input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  background: var(--bg-3);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 12.5px;
+}
+.fp-list {
+  flex: 1;
+  overflow: auto;
+  padding: 6px;
+}
+.fp-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  text-align: left;
+}
+.fp-item:hover {
+  background: var(--hover);
+  border: none;
+}
+.fp-item .fp-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.fp-item .fp-go {
+  color: var(--fg-dim);
+}
+.fp-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--fg-dim);
+}
+.fp-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.folder-picker .primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.folder-picker .primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+  border-color: var(--accent);
+}

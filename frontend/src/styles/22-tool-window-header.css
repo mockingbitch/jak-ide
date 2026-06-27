@@ -1,0 +1,39 @@
+/* ---- tool window header ---- */
+.tw-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 34px;
+  padding: 0 6px 0 10px;
+  flex: 0 0 auto;
+  background: var(--bg-2);
+}
+.tw-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--fg);
+  white-space: nowrap;
+}
+.tw-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.icon-btn {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--fg-dim);
+  border-radius: var(--radius-sm);
+}
+.icon-btn:hover {
+  color: var(--fg);
+  background: var(--hover);
+  border: none;
+}

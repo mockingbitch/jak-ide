@@ -1,0 +1,10 @@
+/* ---- merge conflicts ---- */
+.git-group-head .conflict {
+  color: var(--danger);
+}
+.git-file.conflict .git-file-actions {
+  display: flex;
+}
+.git-file.conflict .git-file-actions .link {
+  font-size: 11px;
+}

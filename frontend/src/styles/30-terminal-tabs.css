@@ -1,0 +1,39 @@
+/* ---- terminal tabs ---- */
+.term-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  flex: 1;
+  overflow-x: auto;
+  margin: 0 8px;
+}
+.term-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px 2px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--fg-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.term-tab:hover {
+  background: var(--hover);
+}
+.term-tab.active {
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+.term-tab .tab-close {
+  width: 15px;
+  height: 15px;
+}
+
+.term-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}

@@ -1,0 +1,37 @@
+/* ---- title-bar branch (VCS) widget ---- */
+.vcs-widget-wrap {
+  position: relative;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.vcs-widget {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  max-width: 280px;
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  font-size: 12.5px;
+}
+.vcs-widget:hover {
+  background: var(--hover);
+  border-color: var(--border);
+}
+.vcs-branch {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vcs-caret {
+  color: var(--fg-dim);
+  flex: 0 0 auto;
+}
+.tb-icon-btn:hover {
+  background: var(--hover);
+  border: none;
+  color: var(--fg);
+}

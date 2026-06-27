@@ -1,0 +1,110 @@
+/* ---- settings modal ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 120;
+  backdrop-filter: blur(2px);
+  -webkit-app-region: no-drag;
+}
+.modal {
+  width: 540px;
+  max-width: 92vw;
+  max-height: 88vh;
+  overflow: auto;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 14px;
+}
+.modal-body {
+  padding: 8px 18px 18px;
+}
+.modal-body section {
+  margin-top: 18px;
+}
+.modal-body h4 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.preset {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  justify-content: flex-start;
+  padding: 9px 11px;
+  text-align: left;
+  border: 1px solid transparent;
+  background: var(--bg-3);
+  border-radius: var(--radius-sm);
+}
+.preset.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.swatches {
+  display: inline-flex;
+  gap: 3px;
+}
+.swatches i {
+  width: 13px;
+  height: 13px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+}
+.accent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.accent-row input[type='color'] {
+  width: 40px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-3);
+}
+.accent-row input[type='range'] {
+  flex: 1;
+  max-width: 280px;
+  accent-color: var(--accent);
+}
+.link {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+}
+.link:hover {
+  background: transparent;
+  border: none;
+  text-decoration: underline;
+}
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+}

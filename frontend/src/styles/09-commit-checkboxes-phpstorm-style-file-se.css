@@ -1,0 +1,20 @@
+/* ---- commit checkboxes (PhpStorm-style file selection) ---- */
+.git-check {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+.git-group-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.git-hint {
+  font-size: 11px;
+  color: var(--fg-dim);
+  padding: 4px 2px 0;
+}

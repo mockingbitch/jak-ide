@@ -1,0 +1,92 @@
+/* ---- Search Everywhere (file finder) ---- */
+.finder-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  z-index: 120;
+  backdrop-filter: blur(2px);
+}
+.finder {
+  width: 640px;
+  max-width: 92vw;
+  max-height: 64vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.finder-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-dim);
+}
+.finder-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font-size: 16px;
+}
+.finder-input::placeholder {
+  color: var(--fg-dim);
+}
+.finder-input:focus-visible {
+  box-shadow: none;
+}
+.finder-list {
+  flex: 1;
+  overflow: auto;
+  padding: 6px;
+}
+.finder-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.finder-item.active {
+  background: var(--accent-soft);
+}
+.finder-item .finder-name {
+  color: var(--fg);
+  font-size: 13px;
+}
+.finder-item .finder-dir {
+  color: var(--fg-dim);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.finder-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--fg-dim);
+}
+.finder-foot {
+  display: flex;
+  gap: 14px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+.finder-foot .k {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-right: 4px;
+}

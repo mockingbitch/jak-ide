@@ -1,0 +1,52 @@
+/* ---- changes (Keep / Revert) ---- */
+.changes {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  padding: 8px 10px;
+  margin: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  max-height: 30%;
+  overflow: auto;
+}
+.changes-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-dim);
+  margin-bottom: 6px;
+}
+.changes-actions {
+  display: flex;
+  gap: 10px;
+}
+.change-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+.change-path {
+  font-family: var(--code-font, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--accent);
+}
+.change-path:hover {
+  text-decoration: underline;
+}
+.change-btns {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.link.danger {
+  color: var(--danger);
+}

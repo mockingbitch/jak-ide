@@ -1,0 +1,52 @@
+/* ---- breadcrumbs ---- */
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 2px;
+  height: 26px;
+  flex: 0 0 auto;
+  padding: 0 12px;
+  background: var(--editor-bg);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.breadcrumbs::-webkit-scrollbar {
+  height: 0;
+}
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  color: var(--fg-dim);
+}
+.crumb.file {
+  color: var(--fg);
+}
+.crumb .ficon {
+  width: 14px;
+  height: 14px;
+}
+.crumb-sep {
+  color: var(--fg-dim);
+  display: inline-flex;
+  align-items: center;
+}
+.monaco-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.editor-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--fg-dim);
+  background: var(--editor-bg);
+}

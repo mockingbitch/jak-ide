@@ -1,0 +1,20 @@
+/* ---- editor diff bar ---- */
+.diff-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+.diff-btns {
+  display: flex;
+  gap: 6px;
+}
+.diff-btns .danger,
+.change-btns .danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}

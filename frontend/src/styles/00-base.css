@@ -1,0 +1,96 @@
+:root {
+  /* Defaults (JetBrains New UI — Dark) — overridden at runtime by applyTheme(). */
+  --bg: #1e1f22;
+  --bg-2: #2b2d30;
+  --bg-3: #393b40;
+  --border: #393b40;
+  --fg: #ced0d6;
+  --fg-dim: #868a91;
+  --editor-bg: #1e1f22;
+  --editor-fg: #bcbec4;
+  --hover: rgba(255, 255, 255, 0.07);
+  --accent: #3574f0;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(53, 116, 240, 0.26);
+
+  --run-green: #5fb865;
+  --danger: #e06c75;
+  --shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+
+  --activity-w: 40px;
+  --titlebar-h: 40px;
+  --statusbar-h: 24px;
+  --radius: 7px;
+  --radius-sm: 6px;
+  --radius-xs: 4px;
+  --radius-lg: 10px;
+  --gap: 5px; /* spacing between floating tool-window cards (New UI) */
+
+  --ui-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Per-base overrides for colours carried from the dark defaults that read poorly
+   on a light theme (data-base is set by applyTheme()). */
+html[data-base='light'] {
+  --run-green: #2e8b35;
+  --danger: #c4332b;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+}
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  font-family: var(--ui-font);
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+button {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.1s ease, border-color 0.1s ease, color 0.1s ease;
+}
+button:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--fg-dim);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+select {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  max-width: 320px;
+}
+input, textarea, select {
+  outline: none;
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.muted {
+  color: var(--fg-dim);
+  font-weight: 400;
+}

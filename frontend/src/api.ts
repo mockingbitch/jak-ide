@@ -95,9 +95,6 @@ export const gitClone = (url: string, parent: string, name?: string): Promise<{ 
   POST('/api/git/clone', { url, parent, name }).then(jsonOrThrow);
 
 export const gitStage = (paths: string[]) => POST('/api/git/stage', { paths }).then(jsonOrThrow);
-export const gitStageAll = () => POST('/api/git/stage', { all: true }).then(jsonOrThrow);
-export const gitUnstage = (paths: string[]) => POST('/api/git/unstage', { paths }).then(jsonOrThrow);
-export const gitUnstageAll = () => POST('/api/git/unstage', { all: true }).then(jsonOrThrow);
 export const gitDiscard = (paths: string[]) => POST('/api/git/discard', { paths }).then(jsonOrThrow);
 export const gitCommit = (message: string, amend = false): Promise<{ ok: boolean; output: string }> =>
   POST('/api/git/commit', { message, amend }).then(jsonOrThrow);

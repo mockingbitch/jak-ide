@@ -1,0 +1,37 @@
+/* ---- activity bars (icon stripes) ---- */
+.activity-bar {
+  width: var(--activity-w);
+  flex: 0 0 auto;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0;
+  gap: 4px;
+}
+/* Activity bars are part of the frame; the card gap provides the separation. */
+.activity-spacer {
+  flex: 1;
+}
+.activity-btn {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--fg-dim);
+}
+.activity-btn:hover {
+  background: var(--hover);
+  border: none;
+  color: var(--fg);
+}
+/* New UI 2024 selected tool-window button: a filled rounded square, no stripe. */
+.activity-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}

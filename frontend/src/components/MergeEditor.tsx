@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react';
 import { useStore } from '../store';
 import { saveFile, gitStage } from '../api';
 import { defineJakIDETheme } from '../lib/monacoTheme';
+import { parseConflicts, type ConflictBlock } from '../lib/conflicts';
 import { IconClose, IconCheck } from './icons';
 
 const LANG: Record<string, string> = {
@@ -14,60 +15,19 @@ const LANG: Record<string, string> = {
 const langFor = (p: string) => LANG[p.split('.').pop()?.toLowerCase() ?? ''] ?? 'plaintext';
 const basename = (p: string) => p.split('/').pop() ?? p;
 
-interface Block {
-  startLine: number;
-  endLine: number; // index of the >>>>>>> line
-  ours: string[];
-  base: string[];
-  theirs: string[];
-}
-
-/** Parse `<<<<<<< / ||||||| / ======= / >>>>>>>` conflict blocks from text. */
-function parseConflicts(text: string): Block[] {
-  const lines = text.split('\n');
-  const blocks: Block[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    if (!lines[i].startsWith('<<<<<<<')) {
-      i++;
-      continue;
-    }
-    const startLine = i;
-    i++;
-    const ours: string[] = [];
-    while (i < lines.length && !lines[i].startsWith('|||||||') && !lines[i].startsWith('=======')) ours.push(lines[i++]);
-    const base: string[] = [];
-    if (i < lines.length && lines[i].startsWith('|||||||')) {
-      i++;
-      while (i < lines.length && !lines[i].startsWith('=======')) base.push(lines[i++]);
-    }
-    const theirs: string[] = [];
-    if (i < lines.length && lines[i].startsWith('=======')) {
-      i++;
-      while (i < lines.length && !lines[i].startsWith('>>>>>>>')) theirs.push(lines[i++]);
-    }
-    if (i < lines.length && lines[i].startsWith('>>>>>>>')) {
-      blocks.push({ startLine, endLine: i, ours, base, theirs });
-      i++;
-    } else {
-      i++; // malformed; skip
-    }
-  }
-  return blocks;
-}
-
 export function MergeEditor() {
   const merge = useStore((s) => s.mergeView)!;
+  const result = useStore((s) => s.mergeResult) ?? '';
+  const setResult = useStore((s) => s.setMergeResult);
   const theme = useStore((s) => s.theme);
   const close = useStore((s) => s.closeMergeView);
   const bumpGitRefresh = useStore((s) => s.bumpGitRefresh);
 
-  const [result, setResult] = useState(merge.working);
   const [busy, setBusy] = useState(false);
 
   const blocks = useMemo(() => parseConflicts(result), [result]);
 
-  const replaceBlock = (b: Block, chosen: string[]) => {
+  const replaceBlock = (b: ConflictBlock, chosen: string[]) => {
     const lines = result.split('\n');
     lines.splice(b.startLine, b.endLine - b.startLine + 1, ...chosen);
     setResult(lines.join('\n'));
@@ -89,7 +49,7 @@ export function MergeEditor() {
   };
 
   return (
-    <div className="editor">
+    <>
       <div className="merge-bar">
         <span className="merge-title">
           Resolve Conflicts — <b>{basename(merge.path)}</b>
@@ -164,6 +124,6 @@ export function MergeEditor() {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }

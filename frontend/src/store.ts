@@ -79,6 +79,11 @@ interface State {
   gitBlame: { path: string; lines: BlameLine[] } | null;
   gitHistory: { path: string; commits: GitCommit[] } | null;
   mergeView: { path: string; base: string; ours: string; theirs: string; working: string } | null;
+  mergeResult: string | null; // editable result of the 3-way merge (kept here so it survives tab switches)
+  // The aux views above (diff/blame/history/merge) render as a single extra "tab".
+  // auxActive = that tab is the focused surface; false means a file tab is focused
+  // (so opening another file while a diff is open works, and you can switch back).
+  auxActive: boolean;
   gitRefreshSeq: number; // bumped to ask git consumers (App, GitPanel) to re-fetch
   auth: {
     method: 'apikey' | 'oauth' | 'claude-code' | 'none';
@@ -150,6 +155,9 @@ interface State {
   closeGitHistory: () => void;
   openMergeView: (m: { path: string; base: string; ours: string; theirs: string; working: string }) => void;
   closeMergeView: () => void;
+  setMergeResult: (text: string) => void;
+  focusAux: () => void;
+  closeAux: () => void;
   bumpGitRefresh: () => void;
 
   toggleLeft: () => void;
@@ -188,6 +196,8 @@ export const useStore = create<State>((set, get) => ({
   gitBlame: null,
   gitHistory: null,
   mergeView: null,
+  mergeResult: null,
+  auxActive: false,
   gitRefreshSeq: 0,
   auth: { method: 'none', hasAuth: false, antInstalled: false },
   authBusy: false,
@@ -211,9 +221,9 @@ export const useStore = create<State>((set, get) => ({
       if (existing) {
         // Re-activate; refresh content only if there are no unsaved edits.
         const tabs = existing.dirty ? s.tabs : s.tabs.map((t) => (t.path === file.path ? file : t));
-        return { tabs, activePath: file.path };
+        return { tabs, activePath: file.path, auxActive: false };
       }
-      return { tabs: [...s.tabs, file], activePath: file.path };
+      return { tabs: [...s.tabs, file], activePath: file.path, auxActive: false };
     }),
 
   closeTab: (path) =>
@@ -229,7 +239,7 @@ export const useStore = create<State>((set, get) => ({
       return { tabs, activePath };
     }),
 
-  setActivePath: (activePath) => set({ activePath }),
+  setActivePath: (activePath) => set({ activePath, auxActive: false }),
 
   setContent: (path, content) =>
     set((s) => ({ tabs: s.tabs.map((t) => (t.path === path ? { ...t, content, dirty: true } : t)) })),
@@ -289,6 +299,8 @@ export const useStore = create<State>((set, get) => ({
       gitBlame: null,
       gitHistory: null,
       mergeView: null,
+      mergeResult: null,
+      auxActive: false,
       gitFiles: [],
       git: { repo: false, branch: null, ahead: 0, behind: 0, changed: 0, detached: false },
     }),
@@ -296,14 +308,18 @@ export const useStore = create<State>((set, get) => ({
   setGit: (git) => set({ git }),
   setGitFiles: (gitFiles) => set({ gitFiles }),
   // The editor-area git views are mutually exclusive.
-  openGitDiff: (gitDiff) => set({ gitDiff, gitBlame: null, gitHistory: null, mergeView: null }),
-  closeGitDiff: () => set({ gitDiff: null }),
-  openGitBlame: (gitBlame) => set({ gitBlame, gitDiff: null, gitHistory: null, mergeView: null }),
-  closeGitBlame: () => set({ gitBlame: null }),
-  openGitHistory: (gitHistory) => set({ gitHistory, gitDiff: null, gitBlame: null, mergeView: null }),
-  closeGitHistory: () => set({ gitHistory: null }),
-  openMergeView: (mergeView) => set({ mergeView, gitDiff: null, gitBlame: null, gitHistory: null }),
-  closeMergeView: () => set({ mergeView: null }),
+  openGitDiff: (gitDiff) => set({ gitDiff, gitBlame: null, gitHistory: null, mergeView: null, auxActive: true }),
+  closeGitDiff: () => set({ gitDiff: null, auxActive: false }),
+  openGitBlame: (gitBlame) => set({ gitBlame, gitDiff: null, gitHistory: null, mergeView: null, auxActive: true }),
+  closeGitBlame: () => set({ gitBlame: null, auxActive: false }),
+  openGitHistory: (gitHistory) => set({ gitHistory, gitDiff: null, gitBlame: null, mergeView: null, auxActive: true }),
+  closeGitHistory: () => set({ gitHistory: null, auxActive: false }),
+  openMergeView: (mergeView) =>
+    set({ mergeView, mergeResult: mergeView.working, gitDiff: null, gitBlame: null, gitHistory: null, auxActive: true }),
+  closeMergeView: () => set({ mergeView: null, mergeResult: null, auxActive: false }),
+  setMergeResult: (mergeResult) => set({ mergeResult }),
+  focusAux: () => set({ auxActive: true }),
+  closeAux: () => set({ gitDiff: null, gitBlame: null, gitHistory: null, mergeView: null, mergeResult: null, auxActive: false }),
   bumpGitRefresh: () => set((s) => ({ gitRefreshSeq: s.gitRefreshSeq + 1 })),
   setAuth: (auth) => set({ auth }),
   setAuthBusy: (authBusy) => set({ authBusy }),

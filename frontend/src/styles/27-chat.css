@@ -1,0 +1,142 @@
+/* ---- chat ---- */
+.chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.banner {
+  background: var(--accent-soft);
+  color: var(--fg);
+  padding: 10px 12px;
+  font-size: 12px;
+  margin: 8px;
+  border-radius: var(--radius-sm);
+}
+.banner-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.banner-note {
+  margin-top: 6px;
+  color: var(--fg-dim);
+  line-height: 1.45;
+}
+.signin-btn {
+  flex: 0 0 auto;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.signin-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.hint {
+  color: var(--fg-dim);
+  padding: 12px;
+  line-height: 1.55;
+}
+.messages {
+  flex: 1;
+  overflow: auto;
+  padding: 10px;
+}
+.msg {
+  margin-bottom: 16px;
+}
+.msg .role {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-dim);
+  margin-bottom: 5px;
+  letter-spacing: 0.02em;
+}
+.msg.user .content pre {
+  border-left: 2px solid var(--accent);
+}
+.content pre {
+  margin: 0;
+  padding: 9px 11px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--code-font, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.thinking {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.thinking summary {
+  cursor: pointer;
+}
+.thinking pre {
+  white-space: pre-wrap;
+  background: var(--bg);
+  border-left: 2px solid var(--border);
+  padding: 6px 8px;
+  margin: 4px 0 0;
+}
+.edits {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.edit-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+}
+.edit-card code {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.composer textarea {
+  flex: 1;
+  resize: none;
+  height: 64px;
+  background: var(--bg-3);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font: inherit;
+  line-height: 1.45;
+}
+.composer button {
+  align-self: stretch;
+  padding: 0 16px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.composer button:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+  border-color: var(--accent);
+}

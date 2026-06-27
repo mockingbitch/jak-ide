@@ -1,0 +1,13 @@
+/* ---- git diff bar (editor area) ---- */
+.git-diff-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  padding: 0 6px 0 12px;
+  flex: 0 0 auto;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  font-size: 12.5px;
+}

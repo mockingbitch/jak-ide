@@ -187,7 +187,8 @@ export function GitPanel() {
   const toggle = (p: string) =>
     setSelected((s) => {
       const n = new Set(s);
-      n.has(p) ? n.delete(p) : n.add(p);
+      if (n.has(p)) n.delete(p);
+      else n.add(p);
       return n;
     });
   const toggleGroup = (list: GitFileEntry[], on: boolean) =>

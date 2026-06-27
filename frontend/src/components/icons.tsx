@@ -61,12 +61,6 @@ export const IconTerminal = (p: P) => (
   </Svg>
 );
 
-export const IconRun = (p: P) => (
-  <Svg {...p} fill="currentColor" stroke="none">
-    <path d="M8 5.5v13l11-6.5z" />
-  </Svg>
-);
-
 export const IconPlus = (p: P) => (
   <Svg {...p}>
     <path d="M12 5v14M5 12h14" />

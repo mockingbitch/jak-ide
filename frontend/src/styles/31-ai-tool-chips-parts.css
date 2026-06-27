@@ -1,0 +1,36 @@
+/* ---- AI tool chips & parts ---- */
+.parts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tool-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-3);
+  font-family: var(--code-font, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+}
+.tool-chip .tool-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-chip.running {
+  border-color: var(--accent);
+}
+.tool-chip.error {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.tool-chip .tool-status {
+  color: var(--fg-dim);
+}
+.tool-chip.done .tool-status {
+  color: var(--run-green);
+}

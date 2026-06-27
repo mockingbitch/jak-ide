@@ -1,0 +1,127 @@
+/* ---- 3-way merge editor ---- */
+.merge-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 38px;
+  padding: 0 6px 0 12px;
+  flex: 0 0 auto;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  font-size: 12.5px;
+}
+.merge-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+.merge-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(224, 108, 117, 0.15);
+  color: var(--danger);
+}
+.merge-count.done {
+  background: rgba(95, 184, 101, 0.16);
+  color: var(--run-green);
+}
+.merge-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.merge-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.merge-result {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+.merge-conflicts {
+  width: 320px;
+  flex: 0 0 auto;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg-2);
+  padding: 8px;
+}
+.merge-conflict {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.merge-conflict-head {
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-dim);
+  background: var(--bg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.merge-side {
+  padding: 6px 9px;
+  border-top: 1px solid var(--border);
+}
+.merge-side-label {
+  font-size: 10.5px;
+  color: var(--fg-dim);
+  margin-bottom: 4px;
+}
+.merge-side.ours .merge-side-label {
+  color: #4d9fff;
+}
+.merge-side.theirs .merge-side-label {
+  color: var(--run-green);
+}
+.merge-side pre {
+  margin: 0 0 6px;
+  max-height: 140px;
+  overflow: auto;
+  background: var(--editor-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 6px 8px;
+  font-family: var(--code-font, ui-monospace, monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.merge-both {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 6px;
+}
+.merge-clean {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--run-green);
+}
+.merge-clean p {
+  color: var(--fg-dim);
+  margin: 0;
+}
+
+.ide-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}

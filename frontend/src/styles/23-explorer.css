@@ -1,0 +1,42 @@
+/* ---- explorer ---- */
+.explorer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.tree {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 0;
+  user-select: none;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 6px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  line-height: 1.3;
+}
+.row:hover {
+  background: var(--hover);
+}
+.row.active {
+  background: var(--accent-soft);
+}
+.row .caret {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-dim);
+}
+.empty-tree {
+  padding: 10px 14px;
+  color: var(--fg-dim);
+}
