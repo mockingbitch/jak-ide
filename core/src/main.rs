@@ -10,7 +10,9 @@ mod index;
 mod paths;
 mod projects;
 mod search;
+mod shells;
 mod state;
+mod terminal;
 mod watch;
 
 use std::sync::Arc;
@@ -32,6 +34,7 @@ async fn main() {
         .merge(fonts::router())
         .merge(search::router())
         .merge(git::router())
+        .merge(terminal::router())
         .with_state(st.clone());
 
     let port: u16 = std::env::var("JAKIDE_CORE_PORT")

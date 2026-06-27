@@ -31,8 +31,12 @@ Ràng buộc số 1: **app luôn hoạt động bình thường ở mọi commit
   (SSE qua axum). Parser test (porcelain v2, blame header, ISO-date không cần crate, repo-name). Live-verified
   toàn bộ: status/branches/log/diff/blame/commit-diff/remotes + stage/unstage/commit-files/branch/checkout/
   rename/delete + merge-conflict → conflict (3-way) → resolve, và fetch/pull/push (error shape đúng).
-- **3. terminal** — `portable-pty` + axum WebSocket `/ws/terminal` (start/input/resize → data/exit) +
-  `GET /api/terminal/shells`. **Bỏ node-pty.** Test: spawn shell, echo round-trip, resize.
+- **3. ✅ DONE** — terminal. `portable-pty` + axum WebSocket `/ws/terminal` (start/input/resize → data/exit,
+  giữ nguyên protocol JSON) + `GET /api/terminal/shells` (port `listShells`). PTY ở project root, TERM=
+  xterm-256color, env kế thừa; generation-guard cho start chồng/stale-exit; shell allowlist (chỉ exec shell
+  đã liệt kê, sai → fallback default). **Bỏ node-pty.** Live-verified: spawn /bin/bash, `echo $((6*7))`→42,
+  resize, exit 0, và shell sai → fallback /usr/bin/zsh. Backpressure: bounded channel + `blocking_send` ở
+  reader thread → PTY tự throttle khi client chậm (gọn hơn pause/resume thủ công của Node).
 - **4. ⭐ FLIP** — Electron spawn `jakide-core`(`:8787`) + Node(`:8788`); Rust `.fallback()` **proxy HTTP/SSE**
   cho phần còn lại (ai/auth/run). App giờ chạy trên **Rust**; chỉ ai/auth/run còn ở Node. Smoke test toàn app.
 - **5. run-command** — allowlist + spawn; `POST /api/run-command`. Gỡ fallthrough.
