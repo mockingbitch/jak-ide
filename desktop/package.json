@@ -1,0 +1,29 @@
+{
+  "name": "jakide-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "JakIDE desktop app (Electron) for Ubuntu / Linux",
+  "author": "JakIDE",
+  "main": "main.js",
+  "scripts": {
+    "dev": "concurrently -k -n backend,frontend,electron -c blue,green,magenta \"npm --prefix ../backend run dev\" \"npm --prefix ../frontend run dev\" \"npm run dev:electron\"",
+    "dev:electron": "wait-on tcp:5173 && JAKIDE_DEV_URL=http://localhost:5173 electron --no-sandbox .",
+    "build:backend": "node scripts/build-backend.mjs",
+    "build:renderer": "npm --prefix ../frontend run build && node scripts/copy-renderer.mjs",
+    "build": "npm run build:backend && npm run build:renderer",
+    "start": "npm run build && electron --no-sandbox .",
+    "dist": "npm run build && electron-builder",
+    "dist:dir": "npm run build && electron-builder --dir",
+    "postinstall": "electron-builder install-app-deps || true"
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "electron": "^42.5.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.1",
+    "wait-on": "^8.0.1"
+  }
+}

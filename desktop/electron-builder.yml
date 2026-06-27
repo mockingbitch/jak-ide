@@ -1,0 +1,26 @@
+appId: com.jakide.app
+productName: JakIDE
+copyright: JakIDE
+
+# asar disabled keeps express.static + the bundled backend reading from the
+# normal filesystem — simplest reliable setup for the MVP.
+asar: false
+
+directories:
+  output: release
+
+files:
+  - main.js
+  - preload.js
+  - prompt.html
+  - "app/**/*"
+  - package.json
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development
+  maintainer: "JakIDE <noreply@example.com>"
+  executableName: jakide
+  artifactName: "${productName}-${version}.${ext}"
