@@ -1,6 +1,7 @@
 //! JakIDE Rust core — an axum HTTP sidecar that replaces the Node backend for
 //! the file engine + project management (Phase 1, strangler-fig migration).
 
+mod ai;
 mod auth;
 mod error;
 mod files;
@@ -40,7 +41,8 @@ async fn main() {
         .merge(terminal::router())
         .merge(run::router())
         .merge(auth::router())
-        // Anything not ported yet (ai + static renderer) → Node.
+        .merge(ai::router())
+        // Static renderer (+ direct-API AI) still served by Node.
         .fallback(proxy::handler)
         .with_state(st.clone());
 

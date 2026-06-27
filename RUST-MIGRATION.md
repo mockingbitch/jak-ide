@@ -57,11 +57,15 @@ Ràng buộc số 1: **app luôn hoạt động bình thường ở mọi commit
   apikey/claude-code/oauth/none. Login serialize bằng Mutex (1 flow/lần), trả 400 khi fail. Credential helper
   (`resolve_method`/`get_oauth_cred`/`env_api_key`/`OAUTH_BETA`) export sẵn cho engine AI (Stage 7).
   Live-verified: `/api/auth/status` khớp byte-for-byte với Node (method=claude-code).
-- **7. AI** — `POST /api/ai/chat` (SSE):
-  - **claude-code / oauth(ant)**: spawn CLI (`claude -p` / `ant`), stream event → SSE. *(nhẹ)*
-  - **api key trực tiếp**: `reqwest` streaming POST `/v1/messages`, chạy vòng lặp tool (≤20) với
-    list_dir/read_file/apply_edit/write_file/run_command, phát text/thinking/tool_use/tool_result/file_change/done.
-    *(phần nặng duy nhất — làm cuối)*. Gỡ fallthrough.
+- **7. 🟡 PARTIAL** — AI `POST /api/ai/chat` (SSE), dispatch theo `resolve_method`:
+  - **claude-code ✅ DONE** (engine chính trên máy này): `core/src/ai/claude_code.rs` spawn `claude -p
+    --output-format stream-json --permission-mode acceptEdits --allowedTools Read Edit Write MultiEdit Grep Glob`,
+    map stream-json → AiEvent (text/thinking/tool_use/tool_result/**file_change** với before/after từ snapshot +
+    created), client disconnect → kill child. Live-verified end-to-end: prompt text→done; và Read→Edit→file_change
+    (before/after đúng)→done, file thực sự đổi trên đĩa.
+  - **none ✅** xử lý native (event error + done).
+  - **apikey/oauth 🟡 PROXIED**: vẫn forward sang Node (engine direct-API `reqwest`+rustls + vòng lặp tool chưa
+    port — phần nặng nhất, KHÔNG test được ở đây vì máy không có API key). Cần làm trước khi xoá Node hoàn toàn.
 - **8. Retire Node** — gỡ `.fallback()` proxy; Electron spawn **chỉ** Rust; xóa `backend/`, node-pty,
   `desktop/app/server.cjs` + `build-backend.mjs`; sửa `desktop/package.json` scripts + README/PLAN.
   Kết quả: **một process Rust duy nhất**, không còn Node runtime.
