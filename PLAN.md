@@ -148,7 +148,13 @@ Kế hoạch chi tiết 22 unit (U1–U22) — xem workflow `phase34-understand`
   (run sống sót khi đổi view); store riêng `runStore.ts` (configs persisted + output capped 1MB),
   `RunPanel` (input + saved-config chips + Run/Stop + output ANSI-stripped `ansi.ts`). 32 cargo + 27 vitest;
   backend live-verified (WS client): stdout/stderr/exit, cwd=root, stop giết group ~0.5s không orphan, empty→-1.
-- ⏳ **Còn lại (không cần cài)**: U21 Problems panel (parse output của Run/lint khi chưa có LSP).
+- ✅ **Problems panel (U21)** — không có LSP nên diagnostics suy ra từ **parse output của Run** (`lib/problems.ts`,
+  pure + test): nhận tsc, cargo/rustc (state máy error→`-->`), ESLint stylish (file-header + rows), và generic
+  `path.ext:line[:col][: severity]: msg` (go/gcc/python). View bottom thứ ba (`bottomView:'problems'`) +
+  nút bottom-bar kèm badge số lượng; nhóm theo file, badge severity, click → mở file tại line:col qua
+  `useOpenFileAt` (path chuẩn hoá về relative: bỏ prefix projectRoot + `./`). Derive qua hook `useProblems`
+  (memo theo output). 32 vitest (+5 parser). Thuần frontend (parse text nhẹ, không cần Rust round-trip).
+- ✅ **Hoàn tất mọi unit Phase 3 KHÔNG bị chặn** (U1–U16, U21). Chỉ còn LSP/DAP cần cài server/adapter.
 - ⛔ **Chặn (cần cài đặt)**: U18 LSP transport (scaffold chạy được nhưng trơ tới khi cài server) · U19/U20 LSP
   features (cần `monaco-languageclient` + ≥1 server, vd `typescript-language-server`) · U22 DAP (Phase 4,
   thiếu mọi adapter). Quyết định cài đặt để mở khoá — chờ xác nhận.

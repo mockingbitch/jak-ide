@@ -163,3 +163,11 @@ export const IconStop = (p: P) => (
     <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" stroke="none" />
   </Svg>
 );
+
+export const IconWarning = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 4 3 19h18z" />
+    <path d="M12 10v4" />
+    <path d="M12 16.5v.5" />
+  </Svg>
+);

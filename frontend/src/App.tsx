@@ -9,6 +9,8 @@ import { EditorGroupView } from './components/EditorGroupView';
 import { ChatPanel } from './components/ChatPanel';
 import { TerminalPanel } from './components/TerminalPanel';
 import { RunPanel } from './components/RunPanel';
+import { ProblemsPanel } from './components/ProblemsPanel';
+import { useProblems } from './hooks/useProblems';
 import { Splitter } from './components/Splitter';
 import { StatusBar } from './components/StatusBar';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -19,7 +21,7 @@ import { GitPanel } from './components/GitPanel';
 import { MainMenu } from './components/MainMenu';
 import { BranchWidget } from './components/BranchWidget';
 import { FolderPicker } from './components/FolderPicker';
-import { IconProject, IconSearch, IconSettings, IconAI, IconTerminal, IconBranch, IconRun } from './components/icons';
+import { IconProject, IconSearch, IconSettings, IconAI, IconTerminal, IconBranch, IconRun, IconWarning } from './components/icons';
 
 export default function App() {
   const layout = useStore((s) => s.layout);
@@ -47,6 +49,8 @@ export default function App() {
   const groups = useStore((s) => s.groups);
   const activeGroupId = useStore((s) => s.activeGroupId);
   const resizeGroup = useStore((s) => s.resizeGroup);
+
+  const problemCount = useProblems().length;
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [finderOpen, setFinderOpen] = useState(false);
@@ -227,6 +231,11 @@ export default function App() {
                     <RunPanel />
                   </div>
                 )}
+                {layout.bottomView === 'problems' && (
+                  <div className="bottom-view">
+                    <ProblemsPanel />
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -247,6 +256,15 @@ export default function App() {
             >
               <IconRun size={13} />
               Run
+            </button>
+            <button
+              className={'bottom-btn' + (layout.bottomOpen && layout.bottomView === 'problems' ? ' active' : '')}
+              onClick={() => selectBottomView('problems')}
+              title="Problems"
+            >
+              <IconWarning size={14} />
+              Problems
+              {problemCount > 0 && <span className="bottom-badge">{problemCount}</span>}
             </button>
           </div>
         </div>
