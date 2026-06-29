@@ -162,9 +162,14 @@ Kế hoạch chi tiết 22 unit (U1–U22) — xem workflow `phase34-understand`
   để sẵn override env). `typescript-language-server`+`typescript` = dependency của `desktop`; dev-core.mjs +
   main.js prepend `node_modules/.bin` (project trước, rồi bundle) vào PATH của core. 3 cargo test (parser
   framing). **Live-verified**: `initialize` → capabilities (hover/completion/definition=true) @314ms.
-- ⏳ **U19/U20 LSP features (frontend)** — tự viết client LSP gọn (JSON-RPC/WS + đăng ký Monaco
-  completion/hover/definition + diagnostics→markers), **tránh** `monaco-languageclient` v9 vì đòi
-  `@codingame/monaco-vscode-api` xung đột vanilla monaco 0.55 + `@monaco-editor/react`.
+- ✅ **U19/U20 LSP features (frontend)** — client LSP tự viết gọn (`lib/lsp/{protocol,client,providers}.ts`,
+  `hooks/useLsp.ts`), KHÔNG dùng `monaco-languageclient` (v9 đòi `@codingame/monaco-vscode-api` xung đột
+  vanilla monaco 0.55). `client.ts`: JSON-RPC/WS, initialize→initialized, queue op tới khi ready, document
+  sync full-text + debounce 300ms. `useLsp`: attach model ts/js (didOpen/didChange/didClose), publishDiagnostics
+  → `setModelMarkers`; URI round-trip `file://<root>/<rel>` ↔ `Uri.parse(rel)`. `providers.ts`: completion
+  (textEdit/snippet/kind), hover, definition (cùng-project). 8 protocol vitest. **Live-verified qua bridge**:
+  diagnostics (type error + unused), completion (52 string methods), hover (`const msg: string`), definition
+  (trỏ đúng dòng khai báo). Render GUI (squiggle/popup/tooltip/go-to-def) do user verify.
 - ⛔ **Còn chặn**: thêm server cho PHP/Python/Go (cài intelephense/pyright/gopls) · U22 DAP (Phase 4,
   thiếu adapter).
 

@@ -3,6 +3,7 @@ import { useStore } from './store';
 import { getHealth, getShells, getAuthStatus, getFonts, getProjects, gitStatus } from './api';
 import { applyTheme } from './theme';
 import { useEditorChrome } from './hooks/useEditorChrome';
+import { useLsp } from './hooks/useLsp';
 import { FileExplorer } from './components/FileExplorer';
 import { FindInFiles } from './components/FindInFiles';
 import { EditorGroupView } from './components/EditorGroupView';
@@ -57,6 +58,7 @@ export default function App() {
   const [symbolOpen, setSymbolOpen] = useState(false);
 
   useEditorChrome();
+  useLsp();
 
   useEffect(() => {
     applyTheme(theme);

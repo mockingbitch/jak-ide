@@ -85,9 +85,14 @@ async fn session(mut socket: WebSocket, st: Arc<AppState>, lang: String) {
 
     loop {
         tokio::select! {
-            Some(msg) = out_rx.recv() => {
-                if socket.send(msg).await.is_err() {
-                    break;
+            msg = out_rx.recv() => {
+                match msg {
+                    Some(msg) => {
+                        if socket.send(msg).await.is_err() {
+                            break;
+                        }
+                    }
+                    None => break, // the server's reader task ended (server exited) → close the WS
                 }
             }
             inbound = socket.recv() => {
