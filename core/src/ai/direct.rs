@@ -234,6 +234,11 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, images: Vec
                         return; // client disconnected
                     }
                 }
+                if ev.get("type").and_then(Value::as_str) == Some("message_delta") {
+                    if let Some(ot) = ev.pointer("/usage/output_tokens").and_then(Value::as_u64) {
+                        let _ = tx.send(evt(json!({ "type": "usage", "outputTokens": ot }))).await;
+                    }
+                }
             }
         }
 

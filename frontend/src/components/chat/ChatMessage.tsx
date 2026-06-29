@@ -1,6 +1,18 @@
 import { ChatMarkdown } from './ChatMarkdown';
 import type { ChatMessage, MessagePart } from '../../types';
 
+const fmtTokens = (n: number) => (n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n));
+function fmtDuration(ms: number): string {
+  const s = Math.round(ms / 1000);
+  return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
+}
+/** Completion meta for a finished assistant turn: "✓ 14s · 1.2k tokens". */
+function turnMeta(m: ChatMessage): string {
+  const parts = [`✓ ${fmtDuration(m.durationMs ?? 0)}`];
+  if (m.tokens != null) parts.push(`${fmtTokens(m.tokens)} tokens`);
+  return parts.join(' · ');
+}
+
 const TOOL_ICON: Record<string, string> = {
   read_file: '📖', list_dir: '📂', apply_edit: '✏️', write_file: '📝', run_command: '▶',
   Read: '📖', LS: '📂', Glob: '🔎', Grep: '🔎', Edit: '✏️', MultiEdit: '✏️', Write: '📝',
@@ -31,7 +43,6 @@ export function ChatMessageView({ m }: { m: ChatMessage }) {
       <div className="chat-msg-head">
         <span className={'chat-avatar ' + m.role}>{isUser ? 'U' : '✦'}</span>
         <span className="chat-role">{isUser ? 'You' : 'Claude'}</span>
-        {m.streaming && <span className="chat-streaming">working…</span>}
       </div>
 
       {m.thinking ? (
@@ -61,7 +72,7 @@ export function ChatMessageView({ m }: { m: ChatMessage }) {
               <ToolChip key={i} p={p} />
             )
           )}
-          {(m.parts ?? []).length === 0 && m.streaming ? <div className="chat-typing">●&thinsp;●&thinsp;●</div> : null}
+          {!m.streaming && m.durationMs != null ? <div className="chat-msg-meta">{turnMeta(m)}</div> : null}
         </div>
       )}
     </div>

@@ -60,6 +60,9 @@ export function useChatStream() {
         recordChange(evt.path, evt.before, evt.created);
         applyAiChange(evt.path, evt.after);
         break;
+      case 'usage':
+        setAt(idx, (m) => ({ ...m, tokens: evt.outputTokens }));
+        break;
       case 'error':
         appendTextAt(idx, `\n\n⚠️ ${evt.error}`);
         break;
@@ -92,7 +95,7 @@ export function useChatStream() {
     setMessages((prev) => [
       ...prev,
       { role: 'user', content: trimmed, images: images.map((i) => ({ previewUrl: i.previewUrl, name: i.name })) },
-      { role: 'assistant', parts: [], thinking: '', streaming: true },
+      { role: 'assistant', parts: [], thinking: '', streaming: true, startedAt: Date.now() },
     ]);
     // The assistant turn we just appended is the pin target for this stream.
     const idx = useStore.getState().messages.length - 1;
@@ -144,10 +147,10 @@ export function useChatStream() {
           }
         }
       }
-      setAt(idx, (m) => ({ ...m, streaming: false }));
+      setAt(idx, (m) => ({ ...m, streaming: false, durationMs: Date.now() - (m.startedAt ?? Date.now()) }));
     } catch (e) {
       if ((e as Error).name !== 'AbortError') appendTextAt(idx, `\n\n⚠️ ${(e as Error).message}`);
-      setAt(idx, (m) => ({ ...m, streaming: false }));
+      setAt(idx, (m) => ({ ...m, streaming: false, durationMs: Date.now() - (m.startedAt ?? Date.now()) }));
     } finally {
       setBusy(false);
       abortRef.current = null;

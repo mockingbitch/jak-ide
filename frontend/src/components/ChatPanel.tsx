@@ -7,6 +7,7 @@ import { fileToImage, imagesFromDataTransfer, MAX_IMAGES, MAX_TOTAL_BYTES, type 
 import { ChatMessageView } from './chat/ChatMessage';
 import { ChatComposer } from './chat/ChatComposer';
 import { ChatChanges } from './chat/ChatChanges';
+import { WorkingIndicator } from './chat/WorkingIndicator';
 import { IconPlus } from './icons';
 
 const SUGGESTIONS = ['Explain this file', 'Find a bug', 'Add tests', 'Write a commit message'];
@@ -158,6 +159,8 @@ export function ChatPanel() {
       </div>
 
       {permissionMode !== 'plan' && <ChatChanges />}
+
+      {busy && <WorkingIndicator onStop={stop} />}
 
       <ChatComposer
         attachments={attachments}

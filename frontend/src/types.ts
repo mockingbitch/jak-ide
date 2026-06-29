@@ -16,6 +16,9 @@ export interface ChatMessage {
   thinking?: string;
   streaming?: boolean;
   images?: { previewUrl: string; name: string }[]; // attachment thumbnails echoed on a user turn
+  startedAt?: number; // ms epoch when this assistant turn began (for the live elapsed timer)
+  durationMs?: number; // wall time once finished
+  tokens?: number; // output tokens reported by the engine (CLI-style counter)
 }
 
 /** Server-sent events streamed from POST /api/ai/chat. */
@@ -25,6 +28,7 @@ export type ChatStreamEvent =
   | { type: 'tool_use'; id: string; name: string; input: unknown }
   | { type: 'tool_result'; id: string; ok: boolean; summary?: string }
   | { type: 'file_change'; path: string; before: string; after: string; created: boolean }
+  | { type: 'usage'; outputTokens: number }
   | { type: 'error'; error: string };
 
 export interface Selection {

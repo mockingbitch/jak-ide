@@ -242,6 +242,9 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, images: Vec
                         }
                     }
                 }
+                if let Some(ot) = obj.pointer("/message/usage/output_tokens").and_then(Value::as_u64) {
+                    let _ = tx.send(ev(json!({ "type": "usage", "outputTokens": ot }))).await;
+                }
             }
             "user" => {
                 if let Some(blocks) = obj.pointer("/message/content").and_then(Value::as_array) {
@@ -266,6 +269,9 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, images: Vec
             }
             "result" => {
                 saw_result = true;
+                if let Some(ot) = obj.pointer("/usage/output_tokens").and_then(Value::as_u64) {
+                    let _ = tx.send(ev(json!({ "type": "usage", "outputTokens": ot }))).await;
+                }
                 let is_error = obj.get("is_error").and_then(Value::as_bool).unwrap_or(false);
                 let subtype = obj.get("subtype").and_then(Value::as_str);
                 if is_error || subtype.map(|s| s != "success").unwrap_or(false) {
