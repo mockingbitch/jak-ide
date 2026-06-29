@@ -12,6 +12,7 @@ import { Splitter } from './components/Splitter';
 import { StatusBar } from './components/StatusBar';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SearchEverywhere } from './components/SearchEverywhere';
+import { GoToSymbol } from './components/GoToSymbol';
 import { ProjectMenu } from './components/ProjectMenu';
 import { GitPanel } from './components/GitPanel';
 import { MainMenu } from './components/MainMenu';
@@ -48,6 +49,7 @@ export default function App() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [finderOpen, setFinderOpen] = useState(false);
+  const [symbolOpen, setSymbolOpen] = useState(false);
 
   useEditorChrome();
 
@@ -106,6 +108,9 @@ export default function App() {
         e.preventDefault();
         const st = useStore.getState();
         if (!(st.layout.leftOpen && st.layout.leftView === 'search')) st.selectLeftView('search');
+      } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        setSymbolOpen(true);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -239,6 +244,7 @@ export default function App() {
 
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
       {finderOpen && <SearchEverywhere onClose={() => setFinderOpen(false)} />}
+      {symbolOpen && <GoToSymbol onClose={() => setSymbolOpen(false)} />}
       {folderPickerOpen && (
         <FolderPicker
           onClose={closeFolderPicker}

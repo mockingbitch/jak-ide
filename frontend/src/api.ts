@@ -91,6 +91,19 @@ export const replaceInFiles = (
 export const getFile = (path: string): Promise<{ content: string; path: string }> =>
   fetch('/api/files/file?path=' + encodeURIComponent(path)).then(jsonOrThrow);
 
+export interface SymbolItem {
+  name: string;
+  kind: string;
+  line: number;
+  col: number;
+  /** Leading-whitespace columns of the declaration, for nested indentation in the UI. */
+  indent: number;
+}
+// Heuristic document symbols (Go to Symbol). `content` is the live buffer so symbols
+// reflect unsaved edits; `path` only selects the language ruleset by extension.
+export const getSymbols = (path: string, content: string): Promise<{ symbols: SymbolItem[] }> =>
+  POST('/api/symbols', { path, content }).then(jsonOrThrow);
+
 export const saveFile = (path: string, content: string) =>
   POST('/api/files/file/save', { path, content }).then(jsonOrThrow);
 

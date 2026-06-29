@@ -132,8 +132,15 @@ Kế hoạch chi tiết 22 unit (U1–U22) — xem workflow `phase34-understand`
   (nhóm theo file, collapse/dismiss, highlight match, click → mở file tại dòng qua `useOpenFileAt`), store
   riêng `lib/findStore.ts` (store chính đã >500 LOC). 24 cargo + 23 vitest; backend live-verified (curl) toàn
   bộ option + replace. **Lưu ý:** replacement dùng cú pháp Rust `regex` (`${1}`, không phải JS `$1`).
-- ⏳ **Còn lại (không cần cài)**: U14/U15 Run config (WS stream) · U16 Go to Symbol (heuristic Rust) ·
-  U21 Problems panel.
+- ✅ **Go to Symbol (U16)** — Rust `POST /api/symbols {path, content}` (engine `core/src/symbols.rs`):
+  quét file theo dòng, mỗi ngôn ngữ một bộ regex line-anchored (TS/JS · Python · Go · Rust · PHP, + ext lạ
+  → rỗng); permissive + **denylist control-keyword trong code** (gọn hơn keyword-guard regex); first-rule-wins,
+  indent>0 ⇒ function thành method; trả `{name,kind,line,col(UTF-16),indent}`. Bộ rule + fixtures thiết kế
+  qua workflow đa-agent (1 agent/ngôn ngữ) → 8 cargo test theo fixtures. UI: modal `GoToSymbol` (Ctrl/Cmd+
+  Shift+O) tái dùng `.finder*`, lọc theo tên, badge theo kind, nhảy editor đang mở qua `revealPosition`.
+  32 cargo + 23 vitest; backend live-verified (curl) cả 5 ngôn ngữ. **Giới hạn heuristic:** field/property
+  không có access-modifier (vd `state = 0`) bỏ qua để tránh nhiễu object-literal; signature đa dòng bỏ qua.
+- ⏳ **Còn lại (không cần cài)**: U14/U15 Run config (WS stream) · U21 Problems panel.
 - ⛔ **Chặn (cần cài đặt)**: U18 LSP transport (scaffold chạy được nhưng trơ tới khi cài server) · U19/U20 LSP
   features (cần `monaco-languageclient` + ≥1 server, vd `typescript-language-server`) · U22 DAP (Phase 4,
   thiếu mọi adapter). Quyết định cài đặt để mở khoá — chờ xác nhận.

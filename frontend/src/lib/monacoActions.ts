@@ -9,6 +9,16 @@ const run = (ed: editor.IStandaloneCodeEditor | null, action: string): void => {
 };
 
 export const gotoLine = (ed: editor.IStandaloneCodeEditor | null) => run(ed, 'editor.action.gotoLine');
+
+/** Reveal and place the cursor at a 1-based (line, col) in an already-open editor. */
+export const revealPosition = (ed: editor.IStandaloneCodeEditor | null, line: number, col = 1): void => {
+  if (!ed) return;
+  const model = ed.getModel();
+  const target = model ? Math.min(line, model.getLineCount()) : line;
+  ed.revealLineInCenter(target);
+  ed.setPosition({ lineNumber: target, column: col });
+  ed.focus();
+};
 export const startFind = (ed: editor.IStandaloneCodeEditor | null) => run(ed, 'actions.find');
 export const startReplace = (ed: editor.IStandaloneCodeEditor | null) => run(ed, 'editor.action.startFindReplaceAction');
 export const formatDocument = (ed: editor.IStandaloneCodeEditor | null) => run(ed, 'editor.action.formatDocument');

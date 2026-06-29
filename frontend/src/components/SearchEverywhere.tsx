@@ -62,6 +62,7 @@ export function SearchEverywhere({ onClose }: { onClose: () => void }) {
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing) return; // ignore IME-composition keystrokes
     if (e.key === 'Escape') {
       e.preventDefault();
       onClose();

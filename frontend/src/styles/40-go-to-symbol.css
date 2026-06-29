@@ -1,0 +1,75 @@
+/* ---- Go to Symbol (reuses .finder*) ---- */
+.sym-item {
+  gap: 9px;
+}
+.sym-badge {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--mono-font, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+.sym-item .finder-name {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sym-kind {
+  flex: 1 1 auto;
+  text-align: right;
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+.sym-line {
+  flex: 0 0 auto;
+  min-width: 30px;
+  text-align: right;
+  color: var(--fg-dim);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* per-kind badge colours */
+.sym-function,
+.sym-method,
+.sym-constructor {
+  background: #6a8759;
+}
+.sym-class,
+.sym-struct {
+  background: #cc7832;
+}
+.sym-interface,
+.sym-trait {
+  background: #9876aa;
+}
+.sym-type,
+.sym-enum {
+  background: #4d9fff;
+}
+.sym-constant,
+.sym-variable,
+.sym-property,
+.sym-field {
+  background: #56b6c2;
+}
+.sym-namespace,
+.sym-module,
+.sym-impl {
+  background: #b08c5b;
+}
+.sym-union {
+  background: #cc7832;
+}
+.sym-macro {
+  background: #e06c75;
+}
+.sym-enum_case {
+  background: #4d9fff;
+}

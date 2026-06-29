@@ -16,6 +16,7 @@ mod run;
 mod search;
 mod shells;
 mod state;
+mod symbols;
 mod terminal;
 mod watch;
 
@@ -37,6 +38,7 @@ async fn main() {
         .merge(projects::router())
         .merge(fonts::router())
         .merge(search::router())
+        .merge(symbols::router())
         .merge(git::router())
         .merge(terminal::router())
         .merge(run::router())
