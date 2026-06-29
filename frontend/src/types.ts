@@ -17,6 +17,15 @@ export interface ChatMessage {
   streaming?: boolean;
 }
 
+/** Server-sent events streamed from POST /api/ai/chat. */
+export type ChatStreamEvent =
+  | { type: 'text'; text: string }
+  | { type: 'thinking'; text: string }
+  | { type: 'tool_use'; id: string; name: string; input: unknown }
+  | { type: 'tool_result'; id: string; ok: boolean; summary?: string }
+  | { type: 'file_change'; path: string; before: string; after: string; created: boolean }
+  | { type: 'error'; error: string };
+
 export interface Selection {
   text: string;
   startLine: number;
@@ -32,6 +41,53 @@ export interface OpenFile {
   path: string;
   content: string;
   dirty: boolean;
+}
+
+// ---- Editor tabs (generalized: a file, or a git diff/blame/history/merge view) ----
+export type TabKind = 'file' | 'diff' | 'blame' | 'history' | 'merge';
+
+interface TabBase {
+  readonly id: string; // stable identity; file tabs use their path, aux tabs use `${kind}:${path}`
+  readonly kind: TabKind;
+  readonly path: string;
+  readonly title: string;
+}
+export interface FileTab extends TabBase {
+  kind: 'file';
+  content: string;
+  dirty: boolean;
+}
+export interface DiffTab extends TabBase {
+  kind: 'diff';
+  diff: GitFileDiff;
+}
+export interface BlameTab extends TabBase {
+  kind: 'blame';
+  lines: BlameLine[];
+}
+export interface HistoryTab extends TabBase {
+  kind: 'history';
+  commits: GitCommit[];
+}
+export interface MergeData {
+  base: string;
+  ours: string;
+  theirs: string;
+  working: string;
+}
+export interface MergeTab extends TabBase {
+  kind: 'merge';
+  merge: MergeData;
+  result: string; // editable 3-way merge result, survives tab switches
+}
+export type EditorTab = FileTab | DiffTab | BlameTab | HistoryTab | MergeTab;
+
+/** One editor group (column) in the split layout. */
+export interface EditorGroup {
+  readonly id: string;
+  tabs: EditorTab[];
+  activeTabId: string | null;
+  size: number; // flex-grow weight within the editor row
 }
 
 export interface Shell {

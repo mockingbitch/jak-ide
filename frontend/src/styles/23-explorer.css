@@ -40,3 +40,15 @@
   padding: 10px 14px;
   color: var(--fg-dim);
 }
+.tree-rename {
+  flex: 1;
+  min-width: 0;
+  height: 19px;
+  padding: 0 4px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-xs);
+  outline: none;
+}

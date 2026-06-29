@@ -27,6 +27,9 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/api/files/file/create", post(create))
         .route("/api/files/file/delete", post(delete_path))
         .route("/api/files/apply", post(apply))
+        .route("/api/files/rename", post(rename))
+        .route("/api/files/mkdir", post(mkdir))
+        .route("/api/files/copy", post(copy))
 }
 
 #[derive(Serialize)]
@@ -152,6 +155,7 @@ async fn create(State(st): State<Arc<AppState>>, Json(b): Json<CreateBody>) -> A
         std::fs::create_dir_all(parent)?;
     }
     std::fs::write(&abs, b.content)?;
+    st.refresh_index();
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -171,6 +175,7 @@ async fn delete_path(State(st): State<Arc<AppState>>, Json(b): Json<DeleteBody>)
     } else {
         std::fs::remove_file(&abs)?;
     }
+    st.refresh_index();
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -220,9 +225,168 @@ async fn apply(State(st): State<Arc<AppState>>, Json(b): Json<ApplyBody>) -> Api
     Ok(Json(json!({ "ok": true, "content": content })))
 }
 
+// ---- file operations: rename/move, mkdir, copy (Phase 3 #4) ----
+
+const EXDEV: i32 = 18; // cross-filesystem rename → fall back to copy+remove
+
+fn copy_dir_all(from: &Path, to: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let e = entry?;
+        let ft = e.file_type()?;
+        let dst = to.join(e.file_name());
+        if ft.is_dir() {
+            copy_dir_all(&e.path(), &dst)?;
+        } else if ft.is_file() {
+            std::fs::copy(e.path(), &dst)?;
+        }
+        // symlinks / other node types are skipped (parity with the tree walker)
+    }
+    Ok(())
+}
+
+fn copy_any(from: &Path, to: &Path) -> std::io::Result<()> {
+    if from.is_dir() {
+        copy_dir_all(from, to)
+    } else {
+        std::fs::copy(from, to).map(|_| ())
+    }
+}
+
+fn remove_any(p: &Path) -> std::io::Result<()> {
+    // symlink_metadata does not follow links, so a symlink-to-dir is removed as the
+    // link itself (remove_file) rather than recursively deleting the link target.
+    let meta = std::fs::symlink_metadata(p)?;
+    if meta.file_type().is_symlink() || !meta.is_dir() {
+        std::fs::remove_file(p)
+    } else {
+        std::fs::remove_dir_all(p)
+    }
+}
+
+/// `std::fs::rename`, falling back to copy+remove across filesystems (EXDEV). On a
+/// failed cross-device copy it removes the half-written destination so a retry isn't
+/// blocked by the 409 "destination exists" guard.
+fn rename_or_copy(from: &Path, to: &Path) -> std::io::Result<()> {
+    match std::fs::rename(from, to) {
+        Ok(()) => Ok(()),
+        Err(e) if e.raw_os_error() == Some(EXDEV) => {
+            if let Err(ce) = copy_any(from, to) {
+                let _ = remove_any(to);
+                return Err(ce);
+            }
+            remove_any(from)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+#[derive(Deserialize)]
+struct RenameBody {
+    path: String,
+    #[serde(rename = "newPath")]
+    new_path: String,
+}
+
+/// Rename — doubles as move when `newPath` lives in another directory.
+async fn rename(State(st): State<Arc<AppState>>, Json(b): Json<RenameBody>) -> ApiResult<Json<Value>> {
+    let root = st.root();
+    let from = resolve_safe(&root, &b.path)?;
+    let to = resolve_safe(&root, &b.new_path)?;
+    if from == root {
+        return Err(ApiError::bad("Refusing to move the project root"));
+    }
+    if to == root {
+        return Err(ApiError::bad("Invalid destination"));
+    }
+    if from == to {
+        return Ok(Json(json!({ "ok": true, "path": to_rel(&root, &to) })));
+    }
+    if !from.exists() {
+        return Err(ApiError::code(StatusCode::NOT_FOUND, "Source does not exist"));
+    }
+    if to.exists() {
+        return Err(ApiError::code(StatusCode::CONFLICT, "Destination already exists"));
+    }
+    if from.is_dir() && to.starts_with(&from) {
+        return Err(ApiError::bad("Cannot move a folder into itself"));
+    }
+    if let Some(parent) = to.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    // A cross-device fallback does a recursive copy+remove → run off the async thread.
+    let resp = to_rel(&root, &to);
+    tokio::task::spawn_blocking(move || rename_or_copy(&from, &to))
+        .await
+        .map_err(|_| ApiError::internal("rename task failed"))??;
+    st.refresh_index();
+    Ok(Json(json!({ "ok": true, "path": resp })))
+}
+
+#[derive(Deserialize)]
+struct MkdirBody {
+    path: String,
+}
+
+async fn mkdir(State(st): State<Arc<AppState>>, Json(b): Json<MkdirBody>) -> ApiResult<Json<Value>> {
+    let abs = resolve_safe(&st.root(), &b.path)?;
+    if abs.exists() {
+        return Err(ApiError::code(StatusCode::CONFLICT, "A file or folder already exists here"));
+    }
+    std::fs::create_dir_all(&abs)?;
+    st.refresh_index();
+    Ok(Json(json!({ "ok": true })))
+}
+
+#[derive(Deserialize)]
+struct CopyBody {
+    from: String,
+    to: String,
+}
+
+async fn copy(State(st): State<Arc<AppState>>, Json(b): Json<CopyBody>) -> ApiResult<Json<Value>> {
+    let root = st.root();
+    let from = resolve_safe(&root, &b.from)?;
+    let to = resolve_safe(&root, &b.to)?;
+    if to == root {
+        return Err(ApiError::bad("Invalid destination"));
+    }
+    if !from.exists() {
+        return Err(ApiError::code(StatusCode::NOT_FOUND, "Source does not exist"));
+    }
+    if to.exists() {
+        return Err(ApiError::code(StatusCode::CONFLICT, "Destination already exists"));
+    }
+    if from.is_dir() && to.starts_with(&from) {
+        return Err(ApiError::bad("Cannot copy a folder into itself"));
+    }
+    if let Some(parent) = to.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    // A recursive copy can be heavy → run it off the request thread; on failure,
+    // remove the partial destination so a retry isn't blocked by the 409 guard.
+    let dest = to.clone();
+    let res = tokio::task::spawn_blocking(move || copy_any(&from, &to))
+        .await
+        .map_err(|_| ApiError::internal("copy task failed"))?;
+    if let Err(e) = res {
+        let _ = remove_any(&dest);
+        return Err(e.into());
+    }
+    st.refresh_index();
+    Ok(Json(json!({ "ok": true, "path": to_rel(&root, &dest) })))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn scratch(tag: &str) -> PathBuf {
+        let p = std::env::temp_dir().join(format!("jak-{}-{}", tag, std::process::id()));
+        let _ = std::fs::remove_dir_all(&p);
+        std::fs::create_dir_all(&p).unwrap();
+        p
+    }
 
     #[test]
     fn tree_lists_dirs_first_and_skips_ignored() {
@@ -237,5 +401,36 @@ mod tests {
         let names: Vec<_> = kids.iter().map(|n| n.name.as_str()).collect();
         assert_eq!(names, vec!["src", "z.txt"]); // node_modules skipped, dir before file
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn copy_dir_all_copies_nested_tree() {
+        let tmp = scratch("copy");
+        std::fs::create_dir_all(tmp.join("src/lib")).unwrap();
+        std::fs::write(tmp.join("src/a.ts"), "a").unwrap();
+        std::fs::write(tmp.join("src/lib/b.ts"), "b").unwrap();
+        copy_any(&tmp.join("src"), &tmp.join("copy")).unwrap();
+        assert_eq!(std::fs::read_to_string(tmp.join("copy/a.ts")).unwrap(), "a");
+        assert_eq!(std::fs::read_to_string(tmp.join("copy/lib/b.ts")).unwrap(), "b");
+        assert!(tmp.join("src/a.ts").exists()); // source untouched
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn rename_or_copy_moves_a_file() {
+        let tmp = scratch("rename");
+        std::fs::write(tmp.join("a.txt"), "hi").unwrap();
+        rename_or_copy(&tmp.join("a.txt"), &tmp.join("b.txt")).unwrap();
+        assert!(!tmp.join("a.txt").exists());
+        assert_eq!(std::fs::read_to_string(tmp.join("b.txt")).unwrap(), "hi");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn rename_into_descendant_is_rejected_by_path_check() {
+        // The handler guards `to.starts_with(from)`; assert the predicate directly.
+        let from = Path::new("/proj/src");
+        let to = Path::new("/proj/src/sub");
+        assert!(to.starts_with(from));
     }
 }

@@ -1,7 +1,8 @@
+import type { Monaco } from '@monaco-editor/react';
 import { monacoColors, type ThemeSetting } from '../theme';
 
 /** Define + register the shared 'jakide' Monaco theme for the current app theme. */
-export function defineJakIDETheme(monaco: any, themeSetting: ThemeSetting): void {
+export function defineJakIDETheme(monaco: Monaco, themeSetting: ThemeSetting): void {
   const c = monacoColors(themeSetting);
   const dark = c.base === 'vs-dark';
   monaco.editor.defineTheme('jakide', {

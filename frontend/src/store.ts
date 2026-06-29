@@ -13,7 +13,11 @@ import type {
   GitFileEntry,
   BlameLine,
   GitCommit,
+  EditorTab,
+  EditorGroup,
+  FileTab,
 } from './types';
+import { basename } from './lib/lang';
 import { DEFAULT_THEME, type ThemeSetting } from './theme';
 
 export interface Layout {
@@ -62,10 +66,59 @@ function loadPersisted(): Persisted {
 
 const persisted = loadPersisted();
 
+// ---- editor group/tab helpers ----
+const GROUP_MIN_SIZE = 0.2;
+const RESIZE_K = 0.004; // px → flex-grow weight (relative units; ratio is what matters)
+
+const newGroup = (seq: number, tabs: EditorTab[] = [], activeTabId: string | null = null): EditorGroup => ({
+  id: `group-${seq}`,
+  tabs,
+  activeTabId,
+  size: 1,
+});
+
+const activeGroupOf = (s: State): EditorGroup => s.groups.find((g) => g.id === s.activeGroupId) ?? s.groups[0];
+
+const mapGroup = (groups: EditorGroup[], id: string, fn: (g: EditorGroup) => EditorGroup): EditorGroup[] =>
+  groups.map((g) => (g.id === id ? fn(g) : g));
+
+// Open (or refresh + activate) an aux tab in the active group.
+function openAux(s: State, tab: EditorTab): Pick<State, 'groups'> {
+  return {
+    groups: mapGroup(s.groups, s.activeGroupId, (g) => {
+      const exists = g.tabs.some((t) => t.id === tab.id);
+      const tabs = exists ? g.tabs.map((t) => (t.id === tab.id ? tab : t)) : [...g.tabs, tab];
+      return { ...g, tabs, activeTabId: tab.id };
+    }),
+  };
+}
+
+// Apply fn to every FILE tab matching `path`, across all groups (a file open in two
+// groups stays in sync — they share one Monaco model anyway).
+function updateFileTabs(s: State, path: string, fn: (t: FileTab) => FileTab): Pick<State, 'groups'> {
+  return {
+    groups: s.groups.map((g) => ({
+      ...g,
+      tabs: g.tabs.map((t) => (t.kind === 'file' && t.path === path ? fn(t) : t)),
+    })),
+  };
+}
+
+function closeOne(g: EditorGroup, tabId: string): EditorGroup {
+  const idx = g.tabs.findIndex((t) => t.id === tabId);
+  if (idx === -1) return g;
+  const tabs = g.tabs.filter((t) => t.id !== tabId);
+  let activeTabId = g.activeTabId;
+  if (g.activeTabId === tabId) activeTabId = (tabs[idx] ?? tabs[idx - 1] ?? null)?.id ?? null;
+  return { ...g, tabs, activeTabId };
+}
+
 interface State {
   tree: TreeNode | null;
-  tabs: OpenFile[];
-  activePath: string | null;
+  // Editor area = one or more side-by-side groups; each holds an ordered list of tabs.
+  groups: EditorGroup[];
+  activeGroupId: string;
+  groupSeq: number;
   selection: Selection | null;
   cursor: Cursor | null;
   messages: ChatMessage[];
@@ -75,15 +128,6 @@ interface State {
   recents: RecentProject[];
   git: { repo: boolean; branch: string | null; ahead: number; behind: number; changed: number; detached: boolean };
   gitFiles: GitFileEntry[];
-  gitDiff: GitFileDiff | null;
-  gitBlame: { path: string; lines: BlameLine[] } | null;
-  gitHistory: { path: string; commits: GitCommit[] } | null;
-  mergeView: { path: string; base: string; ours: string; theirs: string; working: string } | null;
-  mergeResult: string | null; // editable result of the 3-way merge (kept here so it survives tab switches)
-  // The aux views above (diff/blame/history/merge) render as a single extra "tab".
-  // auxActive = that tab is the focused surface; false means a file tab is focused
-  // (so opening another file while a diff is open works, and you can switch back).
-  auxActive: boolean;
   gitRefreshSeq: number; // bumped to ask git consumers (App, GitPanel) to re-fetch
   auth: {
     method: 'apikey' | 'oauth' | 'claude-code' | 'none';
@@ -109,13 +153,21 @@ interface State {
 
   setTree: (t: TreeNode) => void;
 
+  // ---- editor tabs & groups ----
   openTab: (file: OpenFile) => void;
-  closeTab: (path: string) => void;
-  setActivePath: (path: string | null) => void;
+  closeTab: (tabId: string, groupId?: string) => void;
+  setActiveTab: (groupId: string, tabId: string) => void;
+  setActiveGroup: (groupId: string) => void;
+  splitGroup: () => void;
+  closeGroup: (groupId: string) => void;
+  resizeGroup: (index: number, delta: number) => void;
+  moveTab: (tabId: string, fromGroupId: string, toGroupId: string, index?: number) => void;
   setContent: (path: string, content: string) => void;
   refreshTab: (path: string, content: string) => void;
   applyAiChange: (path: string, content: string) => void;
   markSaved: (path: string) => void;
+  renameTab: (oldPath: string, newPath: string) => void;
+  closeTabsUnder: (prefix: string) => void;
 
   setSelection: (s: Selection | null) => void;
   setCursor: (c: Cursor | null) => void;
@@ -148,16 +200,10 @@ interface State {
   setGit: (g: State['git']) => void;
   setGitFiles: (files: GitFileEntry[]) => void;
   openGitDiff: (d: GitFileDiff) => void;
-  closeGitDiff: () => void;
   openGitBlame: (b: { path: string; lines: BlameLine[] }) => void;
-  closeGitBlame: () => void;
   openGitHistory: (h: { path: string; commits: GitCommit[] }) => void;
-  closeGitHistory: () => void;
   openMergeView: (m: { path: string; base: string; ours: string; theirs: string; working: string }) => void;
-  closeMergeView: () => void;
-  setMergeResult: (text: string) => void;
-  focusAux: () => void;
-  closeAux: () => void;
+  setMergeResult: (tabId: string, result: string) => void;
   bumpGitRefresh: () => void;
 
   toggleLeft: () => void;
@@ -180,8 +226,9 @@ function appendTerminal(s: State, shellPath: string) {
 
 export const useStore = create<State>((set, get) => ({
   tree: null,
-  tabs: [],
-  activePath: null,
+  groups: [newGroup(1)],
+  activeGroupId: 'group-1',
+  groupSeq: 1,
   selection: null,
   cursor: null,
   messages: [],
@@ -192,12 +239,6 @@ export const useStore = create<State>((set, get) => ({
   folderPickerOpen: false,
   git: { repo: false, branch: null, ahead: 0, behind: 0, changed: 0, detached: false },
   gitFiles: [],
-  gitDiff: null,
-  gitBlame: null,
-  gitHistory: null,
-  mergeView: null,
-  mergeResult: null,
-  auxActive: false,
   gitRefreshSeq: 0,
   auth: { method: 'none', hasAuth: false, antInstalled: false },
   authBusy: false,
@@ -215,49 +256,177 @@ export const useStore = create<State>((set, get) => ({
 
   setTree: (tree) => set({ tree }),
 
+  // Open (or re-activate) a file as a tab in the active group. Refresh content only
+  // when there are no unsaved edits, so we never clobber a dirty buffer.
   openTab: (file) =>
     set((s) => {
-      const existing = s.tabs.find((t) => t.path === file.path);
-      if (existing) {
-        // Re-activate; refresh content only if there are no unsaved edits.
-        const tabs = existing.dirty ? s.tabs : s.tabs.map((t) => (t.path === file.path ? file : t));
-        return { tabs, activePath: file.path, auxActive: false };
-      }
-      return { tabs: [...s.tabs, file], activePath: file.path, auxActive: false };
+      // A file may already be open in another group (split). All instances of a path
+      // are kept in sync by updateFileTabs, so reuse the existing buffer rather than
+      // the just-loaded disk payload — never clobber an unsaved edit, never diverge.
+      const existing = s.groups.flatMap((g) => g.tabs).find((t): t is FileTab => t.kind === 'file' && t.path === file.path);
+      const dirty = existing ? existing.dirty : file.dirty;
+      const content = existing ? (existing.dirty ? existing.content : file.content) : file.content;
+      const make = (): FileTab => ({ id: file.path, kind: 'file', path: file.path, title: basename(file.path), content, dirty });
+      const groups = s.groups.map((g) => {
+        // 1) sync every existing instance to the resolved content/dirty
+        let tabs = g.tabs.map((t) => (t.kind === 'file' && t.path === file.path ? { ...t, content, dirty } : t));
+        // 2) ensure the active group holds (and activates) the tab
+        if (g.id === s.activeGroupId && !tabs.some((t) => t.id === file.path)) tabs = [...tabs, make()];
+        return g.id === s.activeGroupId ? { ...g, tabs, activeTabId: file.path } : { ...g, tabs };
+      });
+      return { groups, activeGroupId: s.activeGroupId };
     }),
 
-  closeTab: (path) =>
+  closeTab: (tabId, groupId) =>
     set((s) => {
-      const idx = s.tabs.findIndex((t) => t.path === path);
-      if (idx === -1) return {};
-      const tabs = s.tabs.filter((t) => t.path !== path);
-      let activePath = s.activePath;
-      if (s.activePath === path) {
-        const next = tabs[idx] ?? tabs[idx - 1] ?? null;
-        activePath = next?.path ?? null;
+      let groups = s.groups.map((g) => (groupId == null || g.id === groupId ? closeOne(g, tabId) : g));
+      let activeGroupId = s.activeGroupId;
+      if (groups.length > 1) {
+        const kept = groups.filter((g) => g.tabs.length > 0);
+        if (kept.length === 0) {
+          groups = [{ ...groups[0], tabs: [], activeTabId: null }];
+        } else if (kept.length < groups.length) {
+          groups = kept;
+        }
+        if (!groups.some((g) => g.id === activeGroupId)) activeGroupId = groups[groups.length - 1].id;
       }
-      return { tabs, activePath };
+      return { groups, activeGroupId };
     }),
 
-  setActivePath: (activePath) => set({ activePath, auxActive: false }),
+  setActiveTab: (groupId, tabId) =>
+    set((s) => ({ activeGroupId: groupId, groups: mapGroup(s.groups, groupId, (g) => ({ ...g, activeTabId: tabId })) })),
 
-  setContent: (path, content) =>
-    set((s) => ({ tabs: s.tabs.map((t) => (t.path === path ? { ...t, content, dirty: true } : t)) })),
+  setActiveGroup: (activeGroupId) => set({ activeGroupId }),
+
+  // Split Right: open a second group seeded with a clone of the active tab, focus it.
+  splitGroup: () =>
+    set((s) => {
+      const src = activeGroupOf(s);
+      const active = src.tabs.find((t) => t.id === src.activeTabId);
+      if (!active) return {}; // nothing to put in a new group — don't create an empty column
+      const seq = s.groupSeq + 1;
+      const ng = newGroup(seq, [{ ...active }], active.id);
+      const idx = s.groups.findIndex((g) => g.id === src.id);
+      const groups = [...s.groups.slice(0, idx + 1), ng, ...s.groups.slice(idx + 1)];
+      return { groups, groupSeq: seq, activeGroupId: ng.id };
+    }),
+
+  closeGroup: (groupId) =>
+    set((s) => {
+      if (s.groups.length <= 1) return {};
+      const groups = s.groups.filter((g) => g.id !== groupId);
+      const activeGroupId = groups.some((g) => g.id === s.activeGroupId)
+        ? s.activeGroupId
+        : groups[groups.length - 1].id;
+      return { groups, activeGroupId };
+    }),
+
+  resizeGroup: (index, delta) =>
+    set((s) => {
+      if (index < 0 || index + 1 >= s.groups.length) return {};
+      const groups = s.groups.map((g, i) => {
+        if (i === index) return { ...g, size: Math.max(GROUP_MIN_SIZE, g.size + delta * RESIZE_K) };
+        if (i === index + 1) return { ...g, size: Math.max(GROUP_MIN_SIZE, g.size - delta * RESIZE_K) };
+        return g;
+      });
+      return { groups };
+    }),
+
+  // Move a tab from one group to another (drag-drop). Collapses an emptied source group.
+  moveTab: (tabId, fromGroupId, toGroupId, index) =>
+    set((s) => {
+      if (fromGroupId === toGroupId) {
+        // reorder within a group
+        return {
+          groups: mapGroup(s.groups, fromGroupId, (g) => {
+            const from = g.tabs.findIndex((t) => t.id === tabId);
+            if (from === -1) return g;
+            const tabs = [...g.tabs];
+            const [moved] = tabs.splice(from, 1);
+            tabs.splice(index ?? tabs.length, 0, moved);
+            return { ...g, tabs };
+          }),
+        };
+      }
+      const src = s.groups.find((g) => g.id === fromGroupId);
+      const tab = src?.tabs.find((t) => t.id === tabId);
+      if (!tab) return {};
+      let groups = s.groups.map((g) => {
+        if (g.id === fromGroupId) return closeOne(g, tabId);
+        if (g.id === toGroupId) {
+          const exists = g.tabs.some((t) => t.id === tabId);
+          const tabs = exists ? g.tabs : [...g.tabs.slice(0, index ?? g.tabs.length), tab, ...g.tabs.slice(index ?? g.tabs.length)];
+          return { ...g, tabs, activeTabId: tabId };
+        }
+        return g;
+      });
+      let activeGroupId = toGroupId;
+      if (groups.length > 1) {
+        const kept = groups.filter((g) => g.tabs.length > 0);
+        if (kept.length < groups.length && kept.length > 0) groups = kept;
+        if (!groups.some((g) => g.id === activeGroupId)) activeGroupId = groups[groups.length - 1].id;
+      }
+      return { groups, activeGroupId };
+    }),
+
+  setContent: (path, content) => set((s) => updateFileTabs(s, path, (t) => ({ ...t, content, dirty: true }))),
 
   // Force an open tab's content (used by Revert — caller intends to discard the buffer).
-  refreshTab: (path, content) =>
-    set((s) => ({ tabs: s.tabs.map((t) => (t.path === path ? { ...t, content, dirty: false } : t)) })),
+  refreshTab: (path, content) => set((s) => updateFileTabs(s, path, (t) => ({ ...t, content, dirty: false }))),
 
   // Reflect an AI edit in an open tab, but NEVER clobber unsaved user edits.
-  applyAiChange: (path, content) =>
+  applyAiChange: (path, content) => set((s) => updateFileTabs(s, path, (t) => (t.dirty ? t : { ...t, content, dirty: false }))),
+
+  markSaved: (path) => set((s) => updateFileTabs(s, path, (t) => ({ ...t, dirty: false }))),
+
+  // Follow a disk rename/move: rebase the path/id/title of EVERY tab (file and the
+  // aux diff/blame/history/merge views) whose path matches the renamed file, or sits
+  // beneath the renamed directory. Leaving aux tabs on the old path would point their
+  // saves/refreshes at a file that no longer exists.
+  renameTab: (oldPath, newPath) =>
     set((s) => {
-      const tab = s.tabs.find((t) => t.path === path);
-      if (!tab || tab.dirty) return {};
-      return { tabs: s.tabs.map((t) => (t.path === path ? { ...t, content, dirty: false } : t)) };
+      const remap = (p: string): string | null =>
+        p === oldPath ? newPath : p.startsWith(oldPath + '/') ? newPath + p.slice(oldPath.length) : null;
+      const rebase = (t: EditorTab): EditorTab => {
+        const np = remap(t.path);
+        if (!np) return t;
+        const bn = basename(np);
+        switch (t.kind) {
+          case 'file':
+            return { ...t, id: np, path: np, title: bn };
+          case 'diff':
+            return { ...t, id: `diff:${np}:${t.diff.mode}`, path: np, title: `Diff: ${bn}` };
+          case 'blame':
+            return { ...t, id: `blame:${np}`, path: np, title: `Blame: ${bn}` };
+          case 'history':
+            return { ...t, id: `history:${np}`, path: np, title: `History: ${bn}` };
+          case 'merge':
+            return { ...t, id: `merge:${np}`, path: np, title: `Merge: ${bn}` };
+        }
+      };
+      return {
+        groups: s.groups.map((g) => {
+          const before = g.tabs.find((t) => t.id === g.activeTabId);
+          const tabs = g.tabs.map(rebase);
+          const activeTabId = before ? rebase(before).id : g.activeTabId;
+          return { ...g, tabs, activeTabId };
+        }),
+      };
     }),
 
-  markSaved: (path) =>
-    set((s) => ({ tabs: s.tabs.map((t) => (t.path === path ? { ...t, dirty: false } : t)) })),
+  // Close every tab whose file lives under `prefix` (after a directory delete/move).
+  closeTabsUnder: (prefix) =>
+    set((s) => {
+      const under = (p: string) => p === prefix || p.startsWith(prefix + '/');
+      const groups = s.groups.map((g) => {
+        const tabs = g.tabs.filter((t) => !under(t.path));
+        const activeTabId = g.tabs.some((t) => t.id === g.activeTabId && under(t.path))
+          ? (tabs[tabs.length - 1]?.id ?? null)
+          : g.activeTabId;
+        return { ...g, tabs, activeTabId };
+      });
+      return { groups };
+    }),
 
   setSelection: (selection) => set({ selection }),
   setCursor: (cursor) => set({ cursor }),
@@ -286,46 +455,51 @@ export const useStore = create<State>((set, get) => ({
     }
   },
   resetWorkspace: () =>
-    set({
-      tabs: [],
-      activePath: null,
+    set((s) => ({
+      groups: [newGroup(s.groupSeq + 1)],
+      activeGroupId: `group-${s.groupSeq + 1}`,
+      groupSeq: s.groupSeq + 1,
       selection: null,
       cursor: null,
       changes: {},
       tree: null,
       terminals: [],
       activeTerminalId: null,
-      gitDiff: null,
-      gitBlame: null,
-      gitHistory: null,
-      mergeView: null,
-      mergeResult: null,
-      auxActive: false,
       gitFiles: [],
       git: { repo: false, branch: null, ahead: 0, behind: 0, changed: 0, detached: false },
-    }),
+    })),
 
   setGit: (git) => set({ git }),
   setGitFiles: (gitFiles) => set({ gitFiles }),
-  // The editor-area git views are mutually exclusive.
-  openGitDiff: (gitDiff) => set({ gitDiff, gitBlame: null, gitHistory: null, mergeView: null, auxActive: true }),
-  closeGitDiff: () => set({ gitDiff: null, auxActive: false }),
-  openGitBlame: (gitBlame) => set({ gitBlame, gitDiff: null, gitHistory: null, mergeView: null, auxActive: true }),
-  closeGitBlame: () => set({ gitBlame: null, auxActive: false }),
-  openGitHistory: (gitHistory) => set({ gitHistory, gitDiff: null, gitBlame: null, mergeView: null, auxActive: true }),
-  closeGitHistory: () => set({ gitHistory: null, auxActive: false }),
-  openMergeView: (mergeView) =>
-    set({ mergeView, mergeResult: mergeView.working, gitDiff: null, gitBlame: null, gitHistory: null, auxActive: true }),
-  closeMergeView: () => set({ mergeView: null, mergeResult: null, auxActive: false }),
-  setMergeResult: (mergeResult) => set({ mergeResult }),
-  focusAux: () => set({ auxActive: true }),
-  closeAux: () => set({ gitDiff: null, gitBlame: null, gitHistory: null, mergeView: null, mergeResult: null, auxActive: false }),
+  openGitDiff: (d) =>
+    set((s) => openAux(s, { id: `diff:${d.path}:${d.mode}`, kind: 'diff', path: d.path, title: `Diff: ${basename(d.path)}`, diff: d })),
+  openGitBlame: (b) =>
+    set((s) => openAux(s, { id: `blame:${b.path}`, kind: 'blame', path: b.path, title: `Blame: ${basename(b.path)}`, lines: b.lines })),
+  openGitHistory: (h) =>
+    set((s) => openAux(s, { id: `history:${h.path}`, kind: 'history', path: h.path, title: `History: ${basename(h.path)}`, commits: h.commits })),
+  openMergeView: (m) =>
+    set((s) =>
+      openAux(s, {
+        id: `merge:${m.path}`,
+        kind: 'merge',
+        path: m.path,
+        title: `Merge: ${basename(m.path)}`,
+        merge: { base: m.base, ours: m.ours, theirs: m.theirs, working: m.working },
+        result: m.working,
+      })
+    ),
+  setMergeResult: (tabId, result) =>
+    set((s) => ({
+      groups: s.groups.map((g) => ({
+        ...g,
+        tabs: g.tabs.map((t) => (t.id === tabId && t.kind === 'merge' ? { ...t, result } : t)),
+      })),
+    })),
   bumpGitRefresh: () => set((s) => ({ gitRefreshSeq: s.gitRefreshSeq + 1 })),
   setAuth: (auth) => set({ auth }),
   setAuthBusy: (authBusy) => set({ authBusy }),
 
-  setShells: (shells, def) =>
-    set((s) => ({ shells, terminalShell: s.terminalShell ?? def })),
+  setShells: (shells, def) => set((s) => ({ shells, terminalShell: s.terminalShell ?? def })),
   setTerminalShell: (path) => set({ terminalShell: path }),
   setFonts: (fonts) => set({ fonts }),
 
@@ -366,18 +540,24 @@ export const useStore = create<State>((set, get) => ({
       const sameAndOpen = s.layout.leftOpen && s.layout.leftView === view;
       return { layout: { ...s.layout, leftView: view, leftOpen: !sameAndOpen } };
     }),
-  resizeLeft: (delta) =>
-    set((s) => ({ layout: { ...s.layout, leftW: clamp(s.layout.leftW + delta, CLAMP.leftW) } })),
-  resizeRight: (delta) =>
-    set((s) => ({ layout: { ...s.layout, rightW: clamp(s.layout.rightW + delta, CLAMP.rightW) } })),
-  resizeBottom: (delta) =>
-    set((s) => ({ layout: { ...s.layout, bottomH: clamp(s.layout.bottomH + delta, CLAMP.bottomH) } })),
+  resizeLeft: (delta) => set((s) => ({ layout: { ...s.layout, leftW: clamp(s.layout.leftW + delta, CLAMP.leftW) } })),
+  resizeRight: (delta) => set((s) => ({ layout: { ...s.layout, rightW: clamp(s.layout.rightW + delta, CLAMP.rightW) } })),
+  resizeBottom: (delta) => set((s) => ({ layout: { ...s.layout, bottomH: clamp(s.layout.bottomH + delta, CLAMP.bottomH) } })),
 }));
 
+/** The active group, or the first one. */
+export const activeGroup = (s: State): EditorGroup => s.groups.find((g) => g.id === s.activeGroupId) ?? s.groups[0];
+
+/** The active tab of the active group iff it is a file (else null). */
+export function activeFileTab(s: State): FileTab | null {
+  const g = activeGroup(s);
+  const t = g?.tabs.find((tt) => tt.id === g.activeTabId);
+  return t && t.kind === 'file' ? t : null;
+}
+
 /** Helper: the currently active open file (or null). */
-export function activeFile(): OpenFile | null {
-  const s = useStore.getState();
-  return s.tabs.find((t) => t.path === s.activePath) ?? null;
+export function activeFile(): FileTab | null {
+  return activeFileTab(useStore.getState());
 }
 
 // Persist UI prefs (theme, layout, chosen shell) — cheap small write.

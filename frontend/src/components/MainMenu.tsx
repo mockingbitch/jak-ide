@@ -1,12 +1,6 @@
 import { useState } from 'react';
 import { IconMenu } from './icons';
 
-interface Desktop {
-  isDesktop?: boolean;
-  setApiKey?: () => Promise<void>;
-  toggleDevTools?: () => void;
-}
-
 /** Title-bar hamburger main menu — replaces the native File/View/Help bar. */
 export function MainMenu({
   onSettings,
@@ -18,7 +12,7 @@ export function MainMenu({
   onOpenFolder: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const jak = (window as any).jakide as Desktop | undefined;
+  const jak = window.jakide;
   const desktop = !!jak?.isDesktop;
   const pick = (fn: () => void) => {
     setOpen(false);

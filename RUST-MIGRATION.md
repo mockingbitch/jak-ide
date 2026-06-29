@@ -75,6 +75,8 @@ Ràng buộc số 1: **app luôn hoạt động bình thường ở mọi commit
 - Script parity mỗi domain: curl Rust vs Node trên cùng fixture (như đã làm ở stage 0).
 - Sau FLIP: smoke toàn app (mở/sửa/lưu file, git commit, terminal, AI chat, split/diff).
 - **Benchmark RAM** trước/sau (Node baseline → Rust) để xác nhận mục tiêu #3.
+  ✅ Đo được (repo 169 file): core idle **7MB** (Node baseline ~60–120MB); `search/files` ~0.4ms,
+  `search/text` toàn repo ~3ms, `files/tree` ~1.5ms.
 
 ## Quyết định mở (ảnh hưởng công sức stage 7 — AI)
 - Dùng AI qua **Claude Code/`ant` CLI** → Rust chỉ spawn CLI → AI port **nhẹ**, all-Rust dễ.

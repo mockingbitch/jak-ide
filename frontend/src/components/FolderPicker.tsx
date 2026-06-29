@@ -12,7 +12,7 @@ export function FolderPicker({ onClose, onPick }: { onClose: () => void; onPick:
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const native = (window as any).jakide?.pickFolder as undefined | (() => Promise<string | null>);
+  const native = window.jakide?.pickFolder;
 
   useEffect(() => {
     let alive = true;

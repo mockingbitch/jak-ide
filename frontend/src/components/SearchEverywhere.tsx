@@ -1,43 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { TreeNode } from '../types';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
-import { getFile } from '../api';
+import { getFile, searchFiles } from '../api';
 import { FileIcon } from './FileIcon';
 import { IconSearch } from './icons';
-
-interface FileEntry {
-  name: string;
-  path: string;
-}
-
-/** Flatten the project tree into a flat list of file paths. */
-function flatten(node: TreeNode | null): FileEntry[] {
-  if (!node) return [];
-  const out: FileEntry[] = [];
-  const walk = (n: TreeNode) => {
-    if (n.type === 'file') out.push({ name: n.name, path: n.path });
-    n.children?.forEach(walk);
-  };
-  node.children?.forEach(walk);
-  return out;
-}
-
-/** Subsequence fuzzy match; returns a score (higher = better) or -1 for no match. */
-function score(query: string, entry: FileEntry): number {
-  if (!query) return 0;
-  const q = query.toLowerCase();
-  const name = entry.name.toLowerCase();
-  const path = entry.path.toLowerCase();
-  if (name.startsWith(q)) return 1000 - name.length;
-  if (name.includes(q)) return 700 - name.length;
-  // subsequence over the full path
-  let qi = 0;
-  for (let i = 0; i < path.length && qi < q.length; i++) {
-    if (path[i] === q[qi]) qi++;
-  }
-  if (qi === q.length) return 300 - path.length;
-  return -1;
-}
 
 const basename = (p: string) => p.split('/').pop() ?? p;
 const dirname = (p: string) => {
@@ -45,44 +10,50 @@ const dirname = (p: string) => {
   return i > 0 ? p.slice(0, i) : '';
 };
 
+/** Quick "Go to file" — names resolve against the Rust fuzzy index (/api/search/files),
+ *  so it stays fast on huge projects and doesn't depend on the full client-side tree. */
 export function SearchEverywhere({ onClose }: { onClose: () => void }) {
-  const tree = useStore((s) => s.tree);
   const openTab = useStore((s) => s.openTab);
   const [query, setQuery] = useState('');
+  const [results, setResults] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const files = useMemo(() => flatten(tree), [tree]);
-
-  const results = useMemo(() => {
-    const scored = files
-      .map((f) => ({ f, s: score(query, f) }))
-      .filter((x) => x.s >= 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, 50)
-      .map((x) => x.f);
-    return scored;
-  }, [files, query]);
+  // Debounced query against the native index; `alive` guards out-of-order responses.
+  useEffect(() => {
+    let alive = true;
+    const id = setTimeout(() => {
+      setLoading(true);
+      searchFiles(query, 50)
+        .then((r) => alive && setResults(r.results))
+        .catch(() => alive && setResults([]))
+        .finally(() => alive && setLoading(false));
+    }, 110);
+    return () => {
+      alive = false;
+      clearTimeout(id);
+    };
+  }, [query]);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
   useEffect(() => {
     setActive(0);
-  }, [query]);
+  }, [results]);
 
   // Keep the active item in view as you arrow through the list.
   useEffect(() => {
-    const el = listRef.current?.querySelector('.finder-item.active');
-    el?.scrollIntoView({ block: 'nearest' });
+    listRef.current?.querySelector('.finder-item.active')?.scrollIntoView({ block: 'nearest' });
   }, [active]);
 
-  const choose = async (entry?: FileEntry) => {
-    const target = entry ?? results[active];
+  const choose = async (path?: string) => {
+    const target = path ?? results[active];
     if (!target) return;
     try {
-      const f = await getFile(target.path);
+      const f = await getFile(target);
       openTab({ path: f.path, content: f.content, dirty: false });
       onClose();
     } catch (e) {
@@ -123,18 +94,18 @@ export function SearchEverywhere({ onClose }: { onClose: () => void }) {
         </div>
         <div className="finder-list" ref={listRef}>
           {results.length === 0 ? (
-            <div className="finder-empty">{files.length === 0 ? 'No project files loaded.' : 'No matches.'}</div>
+            <div className="finder-empty">{loading ? 'Searching…' : 'No matches.'}</div>
           ) : (
-            results.map((f, i) => (
+            results.map((path, i) => (
               <div
-                key={f.path}
+                key={path}
                 className={'finder-item' + (i === active ? ' active' : '')}
                 onMouseEnter={() => setActive(i)}
-                onClick={() => choose(f)}
+                onClick={() => choose(path)}
               >
-                <FileIcon name={basename(f.path)} />
-                <span className="finder-name">{basename(f.path)}</span>
-                <span className="finder-dir">{dirname(f.path)}</span>
+                <FileIcon name={basename(path)} />
+                <span className="finder-name">{basename(path)}</span>
+                <span className="finder-dir">{dirname(path)}</span>
               </div>
             ))
           )}

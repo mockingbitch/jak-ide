@@ -1,20 +1,61 @@
 /* ---- commit checkboxes (PhpStorm-style file selection) ---- */
+/* Custom-drawn so the box, the tick and the partial (group) state all sit on the
+   theme palette — still a real <input type=checkbox>, so it stays keyboard- and
+   screen-reader-accessible and inherits the global focus-visible ring. */
 .git-check {
-  accent-color: var(--accent);
-  width: 14px;
-  height: 14px;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
   margin: 0;
   flex: 0 0 auto;
   cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  border: 1.5px solid var(--fg-dim);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.git-check:hover {
+  border-color: var(--accent);
+}
+.git-check:checked,
+.git-check:indeterminate {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+/* tick */
+.git-check:checked::after {
+  content: '';
+  width: 4px;
+  height: 8px;
+  margin-top: -1px;
+  border: solid var(--accent-fg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+/* partial / mixed (some files in a group selected) */
+.git-check:indeterminate::after {
+  content: '';
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent-fg);
 }
 .git-group-check {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
+  flex: 1;
+  min-width: 0;
 }
 .git-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   color: var(--fg-dim);
-  padding: 4px 2px 0;
+  padding-top: 2px;
 }

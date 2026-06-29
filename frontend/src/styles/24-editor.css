@@ -1,10 +1,32 @@
 /* ---- editor ---- */
-.editor {
+.editor,
+.editor-group {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+}
+/* One editor group (column) in a split layout. */
+.editor-group {
+  position: relative;
+}
+.editor-group + .editor-group,
+.editor-group {
+  background: var(--editor-bg);
+}
+/* A faint top accent marks the focused group when split. */
+.ide-editor:has(.editor-group ~ .editor-group) .editor-group.active .tabbar {
+  box-shadow: inset 0 2px 0 var(--accent-soft);
+}
+.tabbar-spacer {
+  flex: 1 1 auto;
+}
+.tabbar-split {
+  flex: 0 0 auto;
+}
+.tab.current:not(.active) {
+  color: var(--fg);
 }
 .tabbar {
   display: flex;

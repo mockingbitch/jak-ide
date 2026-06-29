@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
-import { useStore } from '../store';
+import { useStore, activeFileTab } from '../store';
 import { getFile, saveFile, deleteFileApi, getAuthStatus, authLogin } from '../api';
-import type { ChatMessage, MessagePart } from '../types';
+import type { ChatMessage, ChatStreamEvent, MessagePart } from '../types';
 
 const TOOL_ICON: Record<string, string> = {
   // JakIDE SDK-agent tools
@@ -25,10 +25,11 @@ const TOOL_ICON: Record<string, string> = {
   TodoWrite: '🗒️',
 };
 
-function toolLabel(name: string, input: any, summary?: string): string {
+function toolLabel(name: string, input: unknown, summary?: string): string {
   if (summary) return summary;
-  const arg = input?.path ?? input?.command ?? '';
-  return `${name}${arg ? ' ' + arg : ''}`;
+  const arg = input && typeof input === 'object' ? (input as Record<string, unknown>) : undefined;
+  const path = typeof arg?.path === 'string' ? arg.path : typeof arg?.command === 'string' ? arg.command : '';
+  return `${name}${path ? ' ' + path : ''}`;
 }
 
 export function ChatPanel() {
@@ -47,7 +48,7 @@ export function ChatPanel() {
   const clearAllChanges = useStore((s) => s.clearAllChanges);
   const bumpGitRefresh = useStore((s) => s.bumpGitRefresh);
   const changes = useStore((s) => s.changes);
-  const file = useStore((s) => s.tabs.find((t) => t.path === s.activePath) ?? null);
+  const file = useStore(activeFileTab);
 
   const authBusy = useStore((s) => s.authBusy);
   const setAuthBusy = useStore((s) => s.setAuthBusy);
@@ -143,7 +144,7 @@ export function ChatPanel() {
         for (const ch of chunks) {
           const line = ch.trim();
           if (!line.startsWith('data:')) continue;
-          let evt: any;
+          let evt: ChatStreamEvent;
           try {
             evt = JSON.parse(line.slice(5).trim());
           } catch {
@@ -164,7 +165,7 @@ export function ChatPanel() {
     }
   };
 
-  const handleEvent = (evt: any) => {
+  const handleEvent = (evt: ChatStreamEvent) => {
     switch (evt.type) {
       case 'text':
         appendText(evt.text);

@@ -2,6 +2,13 @@ import { useState } from 'react';
 import { gitCloneStreamUrl, openProjectApi } from '../api';
 import { IconClose } from './icons';
 
+/** Server-sent events streamed from the git-clone endpoint. */
+type CloneStreamEvent =
+  | { type: 'start'; target: string }
+  | { type: 'progress'; text?: string }
+  | { type: 'done'; path: string }
+  | { type: 'error'; error?: string };
+
 /** Clone a repository with live progress (SSE), then offer to open the clone. */
 export function CloneDialog({ parentDefault, onClose }: { parentDefault: string; onClose: () => void }) {
   const [url, setUrl] = useState('');
@@ -33,7 +40,7 @@ export function CloneDialog({ parentDefault, onClose }: { parentDefault: string;
         for (const ch of chunks) {
           const line = ch.trim();
           if (!line.startsWith('data:')) continue;
-          let evt: any;
+          let evt: CloneStreamEvent;
           try {
             evt = JSON.parse(line.slice(5).trim());
           } catch {

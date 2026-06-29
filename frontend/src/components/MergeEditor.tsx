@@ -3,34 +3,29 @@ import Editor from '@monaco-editor/react';
 import { useStore } from '../store';
 import { saveFile, gitStage } from '../api';
 import { defineJakIDETheme } from '../lib/monacoTheme';
+import { langFor, basename } from '../lib/lang';
 import { parseConflicts, type ConflictBlock } from '../lib/conflicts';
 import { IconClose, IconCheck } from './icons';
+import type { MergeTab } from '../types';
 
-const LANG: Record<string, string> = {
-  ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript', mjs: 'javascript',
-  json: 'json', py: 'python', go: 'go', php: 'php', md: 'markdown', rb: 'ruby', css: 'css',
-  scss: 'scss', less: 'less', html: 'html', vue: 'html', yml: 'yaml', yaml: 'yaml', sh: 'shell',
-  sql: 'sql', rs: 'rust', java: 'java', kt: 'kotlin', c: 'c', h: 'c', cpp: 'cpp', cs: 'csharp', xml: 'xml',
-};
-const langFor = (p: string) => LANG[p.split('.').pop()?.toLowerCase() ?? ''] ?? 'plaintext';
-const basename = (p: string) => p.split('/').pop() ?? p;
-
-export function MergeEditor() {
-  const merge = useStore((s) => s.mergeView)!;
-  const result = useStore((s) => s.mergeResult) ?? '';
+/** 3-way merge resolver, rendered as the body of a kind='merge' tab. */
+export function MergeEditor({ tab, groupId }: { tab: MergeTab; groupId: string }) {
+  const merge = tab.merge;
+  const result = tab.result;
   const setResult = useStore((s) => s.setMergeResult);
   const theme = useStore((s) => s.theme);
-  const close = useStore((s) => s.closeMergeView);
+  const closeTab = useStore((s) => s.closeTab);
   const bumpGitRefresh = useStore((s) => s.bumpGitRefresh);
 
   const [busy, setBusy] = useState(false);
-
   const blocks = useMemo(() => parseConflicts(result), [result]);
+  const setText = (text: string) => setResult(tab.id, text);
+  const close = () => closeTab(tab.id, groupId);
 
   const replaceBlock = (b: ConflictBlock, chosen: string[]) => {
     const lines = result.split('\n');
     lines.splice(b.startLine, b.endLine - b.startLine + 1, ...chosen);
-    setResult(lines.join('\n'));
+    setText(lines.join('\n'));
   };
 
   const save = async () => {
@@ -38,8 +33,8 @@ export function MergeEditor() {
     if (blocks.length > 0 && !confirm(`${blocks.length} conflict(s) still have markers. Save and stage anyway?`)) return;
     setBusy(true);
     try {
-      await saveFile(merge.path, result);
-      await gitStage([merge.path]);
+      await saveFile(tab.path, result);
+      await gitStage([tab.path]);
       bumpGitRefresh();
       close();
     } catch (e) {
@@ -52,16 +47,16 @@ export function MergeEditor() {
     <>
       <div className="merge-bar">
         <span className="merge-title">
-          Resolve Conflicts — <b>{basename(merge.path)}</b>
+          Resolve Conflicts — <b>{basename(tab.path)}</b>
           <span className={'merge-count' + (blocks.length === 0 ? ' done' : '')}>
             {blocks.length === 0 ? <><IconCheck size={13} /> resolved</> : `${blocks.length} left`}
           </span>
         </span>
         <span className="merge-actions">
-          <button onClick={() => setResult(merge.ours)} title="Replace the whole file with your branch's version">
+          <button onClick={() => setText(merge.ours)} title="Replace the whole file with your branch's version">
             Accept all ours
           </button>
-          <button onClick={() => setResult(merge.theirs)} title="Replace the whole file with the incoming version">
+          <button onClick={() => setText(merge.theirs)} title="Replace the whole file with the incoming version">
             Accept all theirs
           </button>
           <button className="primary" disabled={busy} onClick={save}>
@@ -77,11 +72,11 @@ export function MergeEditor() {
         <div className="merge-result">
           <Editor
             value={result}
-            language={langFor(merge.path)}
+            language={langFor(tab.path)}
             theme="jakide"
             beforeMount={(m) => defineJakIDETheme(m, theme)}
             onMount={(_e, m) => m.editor.setTheme('jakide')}
-            onChange={(v) => setResult(v ?? '')}
+            onChange={(v) => setText(v ?? '')}
             options={{
               fontSize: theme.fontSize,
               fontFamily: theme.fontFamily,

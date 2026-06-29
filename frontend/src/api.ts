@@ -35,6 +35,19 @@ export const getHealth = (): Promise<Health> => fetch('/api/health').then(jsonOr
 
 export const getTree = (): Promise<TreeNode> => fetch('/api/files/tree').then(jsonOrThrow);
 
+// Native (Rust) index/search. File names resolve against the fuzzy index in the
+// core, so "Go to file" no longer needs the full project tree held in the client.
+export const searchFiles = (q: string, limit = 50): Promise<{ results: string[] }> =>
+  fetch(`/api/search/files?q=${encodeURIComponent(q)}&limit=${limit}`).then(jsonOrThrow);
+
+export interface TextHit {
+  path: string;
+  line: number;
+  text: string;
+}
+export const searchText = (q: string, limit = 200): Promise<{ results: TextHit[] }> =>
+  fetch(`/api/search/text?q=${encodeURIComponent(q)}&limit=${limit}`).then(jsonOrThrow);
+
 export const getFile = (path: string): Promise<{ content: string; path: string }> =>
   fetch('/api/files/file?path=' + encodeURIComponent(path)).then(jsonOrThrow);
 
@@ -46,6 +59,15 @@ export const createFileApi = (path: string, content = '') =>
 
 export const deleteFileApi = (path: string) =>
   POST('/api/files/file/delete', { path }).then(jsonOrThrow);
+
+// File operations (rename doubles as move). The server rebuilds the fuzzy index.
+export const renameFileApi = (path: string, newPath: string): Promise<{ ok: boolean; path: string }> =>
+  POST('/api/files/rename', { path, newPath }).then(jsonOrThrow);
+
+export const mkdirApi = (path: string) => POST('/api/files/mkdir', { path }).then(jsonOrThrow);
+
+export const copyFileApi = (from: string, to: string): Promise<{ ok: boolean; path: string }> =>
+  POST('/api/files/copy', { from, to }).then(jsonOrThrow);
 
 export const runCommandApi = (command: string) =>
   POST('/api/run-command', { command }).then(jsonOrThrow);

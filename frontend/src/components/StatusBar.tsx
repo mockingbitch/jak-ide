@@ -1,4 +1,6 @@
-import { useStore } from '../store';
+import { useStore, activeFileTab } from '../store';
+import { getEditor } from '../lib/editorRegistry';
+import { gotoLine } from '../lib/monacoActions';
 import { IconAI, IconBranch } from './icons';
 
 function langLabel(path?: string | null): string {
@@ -10,19 +12,17 @@ function langLabel(path?: string | null): string {
 }
 
 export function StatusBar() {
-  const activePath = useStore((s) => s.activePath);
+  const tab = useStore(activeFileTab);
   const cursor = useStore((s) => s.cursor);
   const model = useStore((s) => s.model);
   const auth = useStore((s) => s.auth);
   const terminalShell = useStore((s) => s.terminalShell);
   const git = useStore((s) => s.git);
   const selectLeftView = useStore((s) => s.selectLeftView);
-  const dirty = useStore((s) => s.tabs.find((t) => t.path === s.activePath)?.dirty ?? false);
-  const eol = useStore((s) => {
-    const t = s.tabs.find((tt) => tt.path === s.activePath);
-    return t && t.content.includes('\r\n') ? 'CRLF' : 'LF';
-  });
 
+  const activePath = tab?.path ?? null;
+  const dirty = tab?.dirty ?? false;
+  const eol = tab && tab.content.includes('\r\n') ? 'CRLF' : 'LF';
   const segs = activePath ? activePath.split('/').filter(Boolean) : [];
 
   const authLabel = auth.method === 'claude-code' ? 'Claude Code' : model || 'AI';
@@ -57,7 +57,11 @@ export function StatusBar() {
           </span>
         )}
         {cursor && (
-          <span className="seg" title="Line : Column">
+          <span
+            className="seg btn"
+            title="Go to Line/Column (Ctrl/Cmd+G)"
+            onClick={() => gotoLine(getEditor(useStore.getState().activeGroupId))}
+          >
             {cursor.line}:{cursor.col}
           </span>
         )}

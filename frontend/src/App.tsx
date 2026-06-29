@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useStore } from './store';
 import { getHealth, getShells, getAuthStatus, getFonts, getProjects, gitStatus } from './api';
 import { applyTheme } from './theme';
+import { useEditorChrome } from './hooks/useEditorChrome';
 import { FileExplorer } from './components/FileExplorer';
-import { EditorPane } from './components/EditorPane';
+import { EditorGroupView } from './components/EditorGroupView';
 import { ChatPanel } from './components/ChatPanel';
 import { TerminalPanel } from './components/TerminalPanel';
 import { Splitter } from './components/Splitter';
@@ -40,9 +41,14 @@ export default function App() {
   const resizeLeft = useStore((s) => s.resizeLeft);
   const resizeRight = useStore((s) => s.resizeRight);
   const resizeBottom = useStore((s) => s.resizeBottom);
+  const groups = useStore((s) => s.groups);
+  const activeGroupId = useStore((s) => s.activeGroupId);
+  const resizeGroup = useStore((s) => s.resizeGroup);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [finderOpen, setFinderOpen] = useState(false);
+
+  useEditorChrome();
 
   useEffect(() => {
     applyTheme(theme);
@@ -62,7 +68,7 @@ export default function App() {
     getProjects()
       .then((p) => setProjects(p.current, p.recents))
       .catch(() => {});
-  }, []);
+  }, [setMeta, setAuth, setShells, setFonts, setProjects]);
 
   // Keep the status-bar branch widget in sync with the active project.
   useEffect(() => {
@@ -165,7 +171,12 @@ export default function App() {
             )}
 
             <div className="ide-editor">
-              <EditorPane />
+              {groups.map((g, i) => (
+                <Fragment key={g.id}>
+                  {i > 0 && <Splitter orientation="v" onDelta={(d) => resizeGroup(i - 1, d)} />}
+                  <EditorGroupView group={g} isActive={g.id === activeGroupId} />
+                </Fragment>
+              ))}
             </div>
 
             {layout.rightOpen && (

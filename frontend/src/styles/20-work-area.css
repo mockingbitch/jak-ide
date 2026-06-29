@@ -47,6 +47,6 @@
   border-radius: var(--radius);
   /* no overflow:hidden — Monaco autocomplete/find popups must not be clipped */
 }
-.ide-editor > .editor {
+.ide-editor > .editor-group:only-child {
   border-radius: var(--radius);
 }

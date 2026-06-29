@@ -17,7 +17,7 @@ import type { GitStatus, GitCommit, GitFileEntry } from '../types';
 import { FileIcon } from './FileIcon';
 import { CloneDialog } from './CloneDialog';
 import { BranchMenu } from './BranchMenu';
-import { IconBranch, IconRefresh, IconArrowUp, IconArrowDown, IconTrash } from './icons';
+import { IconBranch, IconRefresh, IconArrowUp, IconArrowDown, IconTrash, IconChevronDown, IconCheck } from './icons';
 
 const dirOf = (p: string) => {
   const i = p.lastIndexOf('/');
@@ -25,12 +25,13 @@ const dirOf = (p: string) => {
 };
 const baseOf = (p: string) => p.split('/').pop() ?? p;
 
-function statusOf(f: GitFileEntry): { letter: string; cls: string } {
-  if (f.conflicted) return { letter: 'U', cls: 'u' };
-  if (f.index === '?') return { letter: '?', cls: 'q' };
+function statusOf(f: GitFileEntry): { letter: string; cls: string; label: string } {
+  if (f.conflicted) return { letter: 'U', cls: 'u', label: 'Conflicted' };
+  if (f.index === '?') return { letter: '?', cls: 'q', label: 'Untracked' };
   const l = f.work !== '.' ? f.work : f.index;
   const cls = l === 'A' ? 'a' : l === 'D' ? 'd' : l === 'R' || l === 'C' ? 'r' : 'm';
-  return { letter: l, cls };
+  const label = l === 'A' ? 'Added' : l === 'D' ? 'Deleted' : l === 'R' ? 'Renamed' : l === 'C' ? 'Copied' : 'Modified';
+  return { letter: l, cls, label };
 }
 
 // ---- commit graph (lane assignment) ----
@@ -223,13 +224,18 @@ export function GitPanel() {
           </button>
         </div>
         <div className="git-empty">
-          <p>This project is not under version control.</p>
-          <button className="primary" disabled={busy} onClick={() => act(gitInit)}>
-            Initialize Repository
-          </button>
-          <button disabled={busy} onClick={() => setCloning(true)}>
-            Clone Repository…
-          </button>
+          <div className="git-empty-icon">
+            <IconBranch size={26} />
+          </div>
+          <p>This project is not under version control yet.</p>
+          <div className="git-empty-actions">
+            <button className="primary" disabled={busy} onClick={() => act(gitInit)}>
+              Initialize Repository
+            </button>
+            <button disabled={busy} onClick={() => setCloning(true)}>
+              Clone Repository…
+            </button>
+          </div>
           {error && <div className="git-error">{error}</div>}
         </div>
         {cloning && <CloneDialog parentDefault={dirOf(projectRoot) || projectRoot} onClose={() => setCloning(false)} />}
@@ -254,7 +260,9 @@ export function GitPanel() {
           onClick={(e) => e.stopPropagation()}
           onChange={() => toggle(f.path)}
         />
-        <span className={'git-badge ' + s.cls}>{s.letter}</span>
+        <span className={'git-badge ' + s.cls} title={s.label} aria-label={s.label}>
+          {s.letter}
+        </span>
         <FileIcon name={baseOf(f.path)} />
         <span className="git-file-name">{baseOf(f.path)}</span>
         <span className="git-file-dir">{dirOf(f.path)}</span>
@@ -291,7 +299,7 @@ export function GitPanel() {
               }}
               onChange={() => toggleGroup(list, !all)}
             />
-            {title} <span className="muted">{list.length}</span>
+            {title} <span className="git-count">{list.length}</span>
           </label>
         </div>
         {list.map((f) => (
@@ -304,13 +312,20 @@ export function GitPanel() {
   return (
     <div className="git-panel">
       <div className="tw-header git-head">
-        <button className="git-branch-btn" onClick={() => setBranchMenu((o) => !o)} title="Branches" aria-expanded={branchMenu}>
+        <button
+          className="git-branch-btn"
+          onClick={() => setBranchMenu((o) => !o)}
+          title="Switch / manage branches"
+          aria-haspopup="menu"
+          aria-expanded={branchMenu}
+        >
           <IconBranch size={15} />
           <span className="git-branch-name">{status?.branch ?? (status?.detached ? 'detached' : '—')}</span>
-          {!!status?.ahead && <span className="git-ab">↑{status.ahead}</span>}
-          {!!status?.behind && <span className="git-ab">↓{status.behind}</span>}
+          {!!status?.ahead && <span className="git-ab up" title={`${status.ahead} commit(s) ahead of upstream`}>↑{status.ahead}</span>}
+          {!!status?.behind && <span className="git-ab down" title={`${status.behind} commit(s) behind upstream`}>↓{status.behind}</span>}
+          <IconChevronDown size={13} className="git-branch-caret" />
         </button>
-        <div className="tw-actions">
+        <div className="tw-actions git-sync">
           <button className="icon-btn" title="Fetch" disabled={busy} onClick={() => act(gitFetch)}>
             <IconRefresh size={15} />
           </button>
@@ -337,13 +352,26 @@ export function GitPanel() {
       </div>
 
       <div className="git-tabs">
-        <button className={tab === 'changes' ? 'active' : ''} onClick={() => setTab('changes')}>
-          Changes
-        </button>
-        <button className={tab === 'log' ? 'active' : ''} onClick={() => setTab('log')}>
-          Log
-        </button>
-        <button className="icon-btn" title="Refresh" disabled={busy} onClick={refresh} style={{ marginLeft: 'auto' }}>
+        <div className="git-seg" role="tablist" aria-label="Version control view">
+          <button
+            role="tab"
+            aria-selected={tab === 'changes'}
+            className={'git-seg-btn' + (tab === 'changes' ? ' active' : '')}
+            onClick={() => setTab('changes')}
+          >
+            Changes
+            {files.length > 0 && <span className="git-seg-count">{files.length}</span>}
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === 'log'}
+            className={'git-seg-btn' + (tab === 'log' ? ' active' : '')}
+            onClick={() => setTab('log')}
+          >
+            Log
+          </button>
+        </div>
+        <button className="icon-btn" title="Refresh" disabled={busy} onClick={refresh}>
           <IconRefresh size={15} />
         </button>
       </div>
@@ -353,13 +381,18 @@ export function GitPanel() {
       {tab === 'changes' ? (
         <>
           <div className="git-changes">
-            {files.length === 0 && <div className="git-clean">Nothing to commit — working tree clean.</div>}
+            {files.length === 0 && (
+              <div className="git-clean">
+                <IconCheck size={22} />
+                <span>Nothing to commit — working tree clean.</span>
+              </div>
+            )}
 
             {conflicts.length > 0 && (
               <div className="git-group">
                 <div className="git-group-head">
                   <span className="conflict">
-                    Merge Conflicts <span className="muted">{conflicts.length}</span>
+                    Merge Conflicts <span className="git-count">{conflicts.length}</span>
                   </span>
                 </div>
                 {conflicts.map((f) => (
