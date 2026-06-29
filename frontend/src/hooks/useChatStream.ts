@@ -61,7 +61,9 @@ export function useChatStream() {
         applyAiChange(evt.path, evt.after);
         break;
       case 'usage':
-        setAt(idx, (m) => ({ ...m, tokens: evt.outputTokens }));
+        // claude-code reports per-message usage (resets across tool turns) then a
+        // grand total; keep the max so the live counter never ticks backwards.
+        setAt(idx, (m) => ({ ...m, tokens: Math.max(m.tokens ?? 0, evt.outputTokens) }));
         break;
       case 'error':
         appendTextAt(idx, `\n\n⚠️ ${evt.error}`);

@@ -97,6 +97,14 @@ export function ChatPanel() {
         }
         setDragging(0);
       }}
+      onKeyDown={(e) => {
+        // Esc interrupts a running generation — scoped to the chat (focus within
+        // the panel), so it never steals Escape from an open modal.
+        if (busy && e.key === 'Escape' && !e.nativeEvent.isComposing) {
+          e.preventDefault();
+          stop();
+        }
+      }}
     >
       <div className="chat-header">
         <span className="chat-title">AI Assistant</span>

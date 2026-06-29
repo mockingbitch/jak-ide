@@ -36,17 +36,8 @@ export function WorkingIndicator({ onStop }: { onStop: () => void }) {
     const id = setInterval(() => setTick((t) => t + 1), 120);
     return () => clearInterval(id);
   }, []);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.defaultPrevented) {
-        e.preventDefault();
-        onStop();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onStop]);
+  // Esc-to-interrupt is handled by ChatPanel (scoped to the panel) so it can't
+  // steal Escape from open modals (FolderPicker / SearchEverywhere / GoToSymbol).
 
   const m = messages[messages.length - 1];
   const elapsed = Math.max(0, Math.floor((Date.now() - (m?.startedAt ?? Date.now())) / 1000));
