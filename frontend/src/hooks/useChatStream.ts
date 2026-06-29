@@ -15,15 +15,18 @@ export function useChatStream() {
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  const updateLast = (fn: (m: ChatMessage) => ChatMessage) =>
+  // Write to the assistant message at a PINNED index; no-op if the array shrank
+  // (e.g. "New chat" cleared messages mid-stream) so the reducer never throws.
+  const setAt = (idx: number, fn: (m: ChatMessage) => ChatMessage) =>
     setMessages((prev) => {
+      if (idx < 0 || idx >= prev.length) return prev;
       const c = [...prev];
-      c[c.length - 1] = fn(c[c.length - 1]);
+      c[idx] = fn(c[idx]);
       return c;
     });
 
-  const appendText = (text: string) =>
-    updateLast((m) => {
+  const appendTextAt = (idx: number, text: string) =>
+    setAt(idx, (m) => {
       const parts = [...(m.parts ?? [])];
       const last = parts[parts.length - 1];
       if (last && last.kind === 'text') parts[parts.length - 1] = { kind: 'text', text: last.text + text };
@@ -31,22 +34,22 @@ export function useChatStream() {
       return { ...m, parts };
     });
 
-  const handleEvent = (evt: ChatStreamEvent) => {
+  const handleEvent = (idx: number, evt: ChatStreamEvent) => {
     switch (evt.type) {
       case 'text':
-        appendText(evt.text);
+        appendTextAt(idx, evt.text);
         break;
       case 'thinking':
-        updateLast((m) => ({ ...m, thinking: (m.thinking ?? '') + evt.text }));
+        setAt(idx, (m) => ({ ...m, thinking: (m.thinking ?? '') + evt.text }));
         break;
       case 'tool_use':
-        updateLast((m) => ({
+        setAt(idx, (m) => ({
           ...m,
           parts: [...(m.parts ?? []), { kind: 'tool', id: evt.id, name: evt.name, input: evt.input, status: 'running' }],
         }));
         break;
       case 'tool_result':
-        updateLast((m) => ({
+        setAt(idx, (m) => ({
           ...m,
           parts: (m.parts ?? []).map((p) =>
             p.kind === 'tool' && p.id === evt.id ? { ...p, status: evt.ok ? 'done' : 'error', summary: evt.summary } : p
@@ -58,7 +61,7 @@ export function useChatStream() {
         applyAiChange(evt.path, evt.after);
         break;
       case 'error':
-        appendText(`\n\n⚠️ ${evt.error}`);
+        appendTextAt(idx, `\n\n⚠️ ${evt.error}`);
         break;
     }
   };
@@ -91,6 +94,8 @@ export function useChatStream() {
       { role: 'user', content: trimmed, images: images.map((i) => ({ previewUrl: i.previewUrl, name: i.name })) },
       { role: 'assistant', parts: [], thinking: '', streaming: true },
     ]);
+    // The assistant turn we just appended is the pin target for this stream.
+    const idx = useStore.getState().messages.length - 1;
     setBusy(true);
 
     const body = {
@@ -109,6 +114,16 @@ export function useChatStream() {
         body: JSON.stringify(body),
         signal: ac.signal,
       });
+      if (!resp.ok) {
+        const raw = await resp.text().catch(() => '');
+        let msg = raw;
+        try {
+          msg = (JSON.parse(raw) as { error?: string }).error ?? raw;
+        } catch {
+          /* not JSON — use the raw body */
+        }
+        throw new Error(msg.slice(0, 300) || `Request failed (${resp.status})`);
+      }
       if (!resp.body) throw new Error('No response stream');
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
@@ -123,19 +138,16 @@ export function useChatStream() {
           const line = ch.trim();
           if (!line.startsWith('data:')) continue;
           try {
-            handleEvent(JSON.parse(line.slice(5).trim()) as ChatStreamEvent);
+            handleEvent(idx, JSON.parse(line.slice(5).trim()) as ChatStreamEvent);
           } catch {
             /* skip a partial/malformed frame */
           }
         }
       }
-      updateLast((m) => ({ ...m, streaming: false }));
+      setAt(idx, (m) => ({ ...m, streaming: false }));
     } catch (e) {
-      if ((e as Error).name === 'AbortError') updateLast((m) => ({ ...m, streaming: false }));
-      else {
-        appendText(`\n\n⚠️ ${(e as Error).message}`);
-        updateLast((m) => ({ ...m, streaming: false }));
-      }
+      if ((e as Error).name !== 'AbortError') appendTextAt(idx, `\n\n⚠️ ${(e as Error).message}`);
+      setAt(idx, (m) => ({ ...m, streaming: false }));
     } finally {
       setBusy(false);
       abortRef.current = null;

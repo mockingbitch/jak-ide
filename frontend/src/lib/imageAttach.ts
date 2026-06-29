@@ -7,10 +7,13 @@ export interface AttachedImage {
   readonly mediaType: string; // image/png | image/jpeg | image/gif | image/webp
   readonly dataBase64: string; // no data: prefix
   readonly previewUrl: string; // full data: URL for the thumbnail
+  readonly bytes: number; // original file size (for the total-payload budget)
 }
 
-const MAX_BYTES = 5 * 1024 * 1024; // 5MB per image
-// Media types Claude accepts; anything else is sent as png (best effort).
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // per image
+export const MAX_TOTAL_BYTES = 12 * 1024 * 1024; // all attachments (well under the 32MB body cap after base64)
+export const MAX_IMAGES = 8;
+// The only media types Claude accepts; others are rejected (not relabeled).
 const SUPPORTED = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 
 export const isImageFile = (f: File): boolean => f.type.startsWith('image/');
@@ -27,17 +30,20 @@ function readDataUrl(file: File): Promise<string> {
 /** Convert an image File to an AttachedImage, or throw with a user-facing message. */
 export async function fileToImage(file: File): Promise<AttachedImage> {
   if (!isImageFile(file)) throw new Error(`${file.name || 'File'} is not an image`);
-  if (file.size > MAX_BYTES) throw new Error(`${file.name || 'Image'} is larger than 5MB`);
+  if (!SUPPORTED.includes(file.type)) {
+    throw new Error(`Unsupported image format${file.type ? ` (${file.type})` : ''} — use PNG, JPEG, GIF, or WebP`);
+  }
+  if (file.size > MAX_IMAGE_BYTES) throw new Error(`${file.name || 'Image'} is larger than 5MB`);
   const dataUrl = await readDataUrl(file);
   const comma = dataUrl.indexOf(',');
   if (comma < 0) throw new Error('Could not read the image');
-  const mediaType = SUPPORTED.includes(file.type) ? file.type : 'image/png';
   return {
     id: crypto.randomUUID(),
     name: file.name || 'image',
-    mediaType,
+    mediaType: file.type,
     dataBase64: dataUrl.slice(comma + 1),
     previewUrl: dataUrl,
+    bytes: file.size,
   };
 }
 

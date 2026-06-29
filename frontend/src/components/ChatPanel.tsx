@@ -3,7 +3,7 @@ import { useStore, activeFileTab } from '../store';
 import { getAuthStatus, authLogin } from '../api';
 import { useChatStream } from '../hooks/useChatStream';
 import { useAiStore } from '../lib/aiStore';
-import { fileToImage, imagesFromDataTransfer, type AttachedImage } from '../lib/imageAttach';
+import { fileToImage, imagesFromDataTransfer, MAX_IMAGES, MAX_TOTAL_BYTES, type AttachedImage } from '../lib/imageAttach';
 import { ChatMessageView } from './chat/ChatMessage';
 import { ChatComposer } from './chat/ChatComposer';
 import { ChatChanges } from './chat/ChatChanges';
@@ -34,10 +34,20 @@ export function ChatPanel() {
   }, [messages]);
 
   const addFiles = async (files: File[]) => {
+    let current = attachments;
     for (const f of files) {
+      if (current.length >= MAX_IMAGES) {
+        alert(`You can attach at most ${MAX_IMAGES} images.`);
+        break;
+      }
       try {
         const img = await fileToImage(f);
-        setAttachments((prev) => [...prev, img]);
+        if (current.reduce((s, a) => s + a.bytes, 0) + img.bytes > MAX_TOTAL_BYTES) {
+          alert(`Attachments exceed ${Math.round(MAX_TOTAL_BYTES / (1024 * 1024))}MB total.`);
+          break;
+        }
+        current = [...current, img];
+        setAttachments(current);
       } catch (e) {
         alert((e as Error).message);
       }
@@ -91,7 +101,14 @@ export function ChatPanel() {
         <span className="chat-title">AI Assistant</span>
         <span className="chat-model-badge" title="Active model">{model}</span>
         {messages.length > 0 && (
-          <button className="chat-newchat" title="New chat" onClick={() => setMessages([])}>
+          <button
+            className="chat-newchat"
+            title="New chat"
+            onClick={() => {
+              stop(); // abort any in-flight stream before clearing
+              setMessages([]);
+            }}
+          >
             <IconPlus size={15} />
           </button>
         )}
