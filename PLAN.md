@@ -170,8 +170,12 @@ Kế hoạch chi tiết 22 unit (U1–U22) — xem workflow `phase34-understand`
   (textEdit/snippet/kind), hover, definition (cùng-project). 8 protocol vitest. **Live-verified qua bridge**:
   diagnostics (type error + unused), completion (52 string methods), hover (`const msg: string`), definition
   (trỏ đúng dòng khai báo). Render GUI (squiggle/popup/tooltip/go-to-def) do user verify.
-- ⛔ **Còn chặn**: thêm server cho PHP/Python/Go (cài intelephense/pyright/gopls) · U22 DAP (Phase 4,
-  thiếu adapter).
+- ✅ **LSP đa ngôn ngữ** — `useLsp` quản N client (lazy theo family), provider đăng ký theo `LANG_CONFIGS`;
+  `clientLang(path)` route file→server. **PHP (intelephense)** + **Python (pyright)** = desktop deps, cài
+  xong; live-verified diagnostics (pyright: type mismatch @945ms; intelephense: undefined var @1737ms).
+  **Go (gopls)**: đã wire (`server_for` + provider), chỉ chờ cài Go toolchain + `gopls` — bridge đóng WS
+  graceful khi thiếu server.
+- ⛔ **Còn chặn**: gopls (cần Go toolchain) · U22 DAP (Phase 4, thiếu adapter).
 
 ---
 

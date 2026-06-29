@@ -110,7 +110,40 @@ export function lspLanguageId(path: string): string {
       return 'javascript';
     case 'jsx':
       return 'javascriptreact';
+    case 'php':
+    case 'phtml':
+      return 'php';
+    case 'py':
+    case 'pyi':
+      return 'python';
+    case 'go':
+      return 'go';
     default:
       return 'plaintext';
+  }
+}
+
+/** Which language server (the `/ws/lsp?lang=` value) handles a file, or null. One
+ *  server per family: ts/tsx/js/jsx all go to the TypeScript server. */
+export function clientLang(path: string): string | null {
+  const ext = path.split('.').pop()?.toLowerCase() ?? '';
+  switch (ext) {
+    case 'ts':
+    case 'tsx':
+    case 'js':
+    case 'jsx':
+    case 'mjs':
+    case 'cjs':
+      return 'typescript';
+    case 'php':
+    case 'phtml':
+      return 'php';
+    case 'py':
+    case 'pyi':
+      return 'python';
+    case 'go':
+      return 'go';
+    default:
+      return null;
   }
 }

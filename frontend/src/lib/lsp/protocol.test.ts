@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { markerSeverity, toMonacoRange, diagnosticToMarker, lspLanguageId, positionToLsp, completionKindName, hoverContents } from './protocol';
+import { markerSeverity, toMonacoRange, diagnosticToMarker, lspLanguageId, positionToLsp, completionKindName, hoverContents, clientLang } from './protocol';
 
 describe('lsp protocol conversions', () => {
   it('maps LSP severity to Monaco MarkerSeverity', () => {
@@ -44,7 +44,20 @@ describe('lsp protocol conversions', () => {
     expect(lspLanguageId('a.tsx')).toBe('typescriptreact');
     expect(lspLanguageId('a.jsx')).toBe('javascriptreact');
     expect(lspLanguageId('a.mjs')).toBe('javascript');
+    expect(lspLanguageId('a.php')).toBe('php');
+    expect(lspLanguageId('a.py')).toBe('python');
+    expect(lspLanguageId('a.go')).toBe('go');
     expect(lspLanguageId('a.css')).toBe('plaintext');
+  });
+
+  it('routes a file to the right language server family', () => {
+    expect(clientLang('a.ts')).toBe('typescript');
+    expect(clientLang('a.tsx')).toBe('typescript');
+    expect(clientLang('a.jsx')).toBe('typescript');
+    expect(clientLang('a.php')).toBe('php');
+    expect(clientLang('a.py')).toBe('python');
+    expect(clientLang('a.go')).toBe('go');
+    expect(clientLang('a.css')).toBeNull();
   });
 
   it('converts Monaco position to 0-based LSP position', () => {

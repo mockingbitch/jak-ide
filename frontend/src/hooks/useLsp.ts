@@ -5,14 +5,22 @@ import type { editor, IDisposable } from 'monaco-editor';
 import { useStore } from '../store';
 import { createLspClient, type LspClient } from '../lib/lsp/client';
 import { registerLspProviders } from '../lib/lsp/providers';
-import { diagnosticToMarker, lspLanguageId, type LspDiagnostic } from '../lib/lsp/protocol';
+import { clientLang, diagnosticToMarker, lspLanguageId, type LspDiagnostic } from '../lib/lsp/protocol';
 
 const CHANGE_DEBOUNCE = 300;
-const relPathOf = (model: editor.ITextModel) => model.uri.path.replace(/^\/+/, '');
-const isSupported = (model: editor.ITextModel) => lspLanguageId(relPathOf(model)) !== 'plaintext';
+// Monaco language ids per server family, for provider registration.
+const LANG_CONFIGS: ReadonlyArray<{ id: string; monaco: string[] }> = [
+  { id: 'typescript', monaco: ['typescript', 'javascript'] },
+  { id: 'php', monaco: ['php'] },
+  { id: 'python', monaco: ['python'] },
+  { id: 'go', monaco: ['go'] },
+];
 
-/** Wire TypeScript/JavaScript models to the LSP bridge for live diagnostics
- *  (markers). One client per project; document sync is full-text + debounced. */
+const relPathOf = (model: editor.ITextModel) => model.uri.path.replace(/^\/+/, '');
+
+/** Wire source models to per-language LSP servers (via the /ws/lsp bridge) for live
+ *  diagnostics + completion/hover/definition. One client per language family, created
+ *  lazily on first use; full-text + debounced document sync. */
 export function useLsp(): void {
   const monaco = useMonaco();
   const projectRoot = useStore((s) => s.projectRoot);
@@ -22,23 +30,32 @@ export function useLsp(): void {
     const rootUri = `file://${projectRoot}`;
     const lspUri = (model: editor.ITextModel) => `${rootUri}/${relPathOf(model)}`;
 
-    const client: LspClient = createLspClient({
-      lang: 'typescript',
-      rootUri,
-      onDiagnostics: (uri, diagnostics) => applyDiagnostics(monaco, rootUri, uri, diagnostics),
-    });
+    const clients = new Map<string, LspClient>();
+    const getClient = (langId: string): LspClient => {
+      let c = clients.get(langId);
+      if (!c) {
+        c = createLspClient({
+          lang: langId,
+          rootUri,
+          onDiagnostics: (uri, diagnostics) => applyDiagnostics(monaco, rootUri, uri, diagnostics),
+        });
+        clients.set(langId, c);
+      }
+      return c;
+    };
 
     const perModel = new Map<string, IDisposable[]>();
     const timers = new Map<string, ReturnType<typeof setTimeout>>();
-    // Providers only act on models we actually didOpen (real project files), never
-    // on anonymous diff/merge models that happen to be ts/js.
-    const providers = registerLspProviders(monaco, client, rootUri, lspUri, (model) => perModel.has(model.uri.toString()));
 
     const attach = (model: editor.ITextModel) => {
-      if (model.isDisposed() || !isSupported(model) || perModel.has(model.uri.toString())) return;
-      const uri = lspUri(model);
+      if (model.isDisposed()) return;
+      const path = relPathOf(model);
+      const langId = clientLang(path);
       const key = model.uri.toString();
-      client.open(uri, lspLanguageId(relPathOf(model)), model.getValue());
+      if (!langId || perModel.has(key)) return;
+      const uri = lspUri(model);
+      const client = getClient(langId);
+      client.open(uri, lspLanguageId(path), model.getValue());
       const changeSub = model.onDidChangeContent(() => {
         const t = timers.get(key);
         if (t) clearTimeout(t);
@@ -61,13 +78,21 @@ export function useLsp(): void {
     monaco.editor.getModels().forEach(attach);
     const createSub = monaco.editor.onDidCreateModel(attach);
 
+    // Providers act only on tracked (opened project) models; the client for a family
+    // is created lazily the first time it's needed.
+    const isTracked = (model: editor.ITextModel) => perModel.has(model.uri.toString());
+    const providers = LANG_CONFIGS.flatMap((cfg) =>
+      registerLspProviders(monaco, cfg.monaco, () => getClient(cfg.id), rootUri, lspUri, isTracked)
+    );
+
     return () => {
       createSub.dispose();
       providers.forEach((d) => d.dispose());
       for (const t of timers.values()) clearTimeout(t);
       for (const subs of perModel.values()) subs.forEach((d) => d.dispose());
       perModel.clear();
-      client.dispose();
+      for (const c of clients.values()) c.dispose();
+      clients.clear();
     };
   }, [monaco, projectRoot]);
 }
@@ -75,9 +100,8 @@ export function useLsp(): void {
 function applyDiagnostics(monaco: Monaco, rootUri: string, uri: string, diagnostics: LspDiagnostic[]): void {
   // file://<root>/<rel> → <rel> → the relative-path model.
   const prefix = rootUri + '/';
-  const rel = uri.startsWith(prefix) ? uri.slice(prefix.length) : null;
-  if (rel === null) return;
-  const model = monaco.editor.getModel(monaco.Uri.parse(rel));
+  if (!uri.startsWith(prefix)) return;
+  const model = monaco.editor.getModel(monaco.Uri.parse(uri.slice(prefix.length)));
   if (!model) return;
   monaco.editor.setModelMarkers(model, 'lsp', diagnostics.map(diagnosticToMarker));
 }

@@ -35,8 +35,6 @@ interface LspLocation {
   targetRange?: LspRange;
 }
 
-const LANGS = ['typescript', 'javascript'];
-
 const docOf = (d: unknown): string | { value: string } | undefined => {
   if (typeof d === 'string') return d;
   if (d && typeof d === 'object' && typeof (d as { value?: unknown }).value === 'string') {
@@ -49,7 +47,8 @@ const docOf = (d: unknown): string | { value: string } | undefined => {
  *  `uriOf` maps a model to its LSP file:// uri. Returns disposables. */
 export function registerLspProviders(
   monaco: Monaco,
-  client: LspClient,
+  languages: string[],
+  getClient: () => LspClient,
   rootUri: string,
   uriOf: (model: editor.ITextModel) => string,
   isTracked: (model: editor.ITextModel) => boolean
@@ -60,11 +59,11 @@ export function registerLspProviders(
   });
   const kindEnum = monaco.languages.CompletionItemKind as unknown as Record<string, number>;
 
-  const completion = monaco.languages.registerCompletionItemProvider(LANGS, {
+  const completion = monaco.languages.registerCompletionItemProvider(languages, {
     triggerCharacters: ['.', '"', "'", '/', '@', '<', ' '],
     async provideCompletionItems(model: editor.ITextModel, position: Position) {
       if (!isTracked(model)) return { suggestions: [] };
-      const res = await client
+      const res = await getClient()
         .request<LspCompletionItem[] | LspCompletionList | null>('textDocument/completion', docPos(model, position))
         .catch(() => null);
       if (!res) return { suggestions: [] };
@@ -93,10 +92,10 @@ export function registerLspProviders(
     },
   });
 
-  const hover = monaco.languages.registerHoverProvider(LANGS, {
+  const hover = monaco.languages.registerHoverProvider(languages, {
     async provideHover(model: editor.ITextModel, position: Position) {
       if (!isTracked(model)) return null;
-      const res = await client.request<LspHover | null>('textDocument/hover', docPos(model, position)).catch(() => null);
+      const res = await getClient().request<LspHover | null>('textDocument/hover', docPos(model, position)).catch(() => null);
       if (!res || !res.contents) return null;
       const contents = hoverContents(res.contents).map((value) => ({ value }));
       if (contents.length === 0) return null;
@@ -104,10 +103,10 @@ export function registerLspProviders(
     },
   });
 
-  const definition = monaco.languages.registerDefinitionProvider(LANGS, {
+  const definition = monaco.languages.registerDefinitionProvider(languages, {
     async provideDefinition(model: editor.ITextModel, position: Position) {
       if (!isTracked(model)) return null;
-      const res = await client
+      const res = await getClient()
         .request<LspLocation | LspLocation[] | null>('textDocument/definition', docPos(model, position))
         .catch(() => null);
       if (!res) return null;
