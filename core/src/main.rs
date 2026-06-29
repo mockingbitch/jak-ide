@@ -13,6 +13,7 @@ mod paths;
 mod projects;
 mod proxy;
 mod run;
+mod runner;
 mod search;
 mod shells;
 mod state;
@@ -42,6 +43,7 @@ async fn main() {
         .merge(git::router())
         .merge(terminal::router())
         .merge(run::router())
+        .merge(runner::router())
         .merge(auth::router())
         .merge(ai::router())
         // Static renderer (+ direct-API AI) still served by Node.

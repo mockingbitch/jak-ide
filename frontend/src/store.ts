@@ -28,6 +28,7 @@ export interface Layout {
   rightW: number;
   bottomH: number;
   leftView: 'project' | 'git' | 'search';
+  bottomView: 'terminal' | 'run';
 }
 
 const DEFAULT_LAYOUT: Layout = {
@@ -38,6 +39,7 @@ const DEFAULT_LAYOUT: Layout = {
   rightW: 400,
   bottomH: 240,
   leftView: 'project',
+  bottomView: 'terminal',
 };
 
 const CLAMP = {
@@ -210,6 +212,7 @@ interface State {
   toggleRight: () => void;
   toggleBottom: () => void;
   selectLeftView: (view: 'project' | 'git' | 'search') => void;
+  selectBottomView: (view: 'terminal' | 'run') => void;
   resizeLeft: (delta: number) => void;
   resizeRight: (delta: number) => void;
   resizeBottom: (delta: number) => void;
@@ -539,6 +542,11 @@ export const useStore = create<State>((set, get) => ({
     set((s) => {
       const sameAndOpen = s.layout.leftOpen && s.layout.leftView === view;
       return { layout: { ...s.layout, leftView: view, leftOpen: !sameAndOpen } };
+    }),
+  selectBottomView: (view) =>
+    set((s) => {
+      const sameAndOpen = s.layout.bottomOpen && s.layout.bottomView === view;
+      return { layout: { ...s.layout, bottomView: view, bottomOpen: !sameAndOpen } };
     }),
   resizeLeft: (delta) => set((s) => ({ layout: { ...s.layout, leftW: clamp(s.layout.leftW + delta, CLAMP.leftW) } })),
   resizeRight: (delta) => set((s) => ({ layout: { ...s.layout, rightW: clamp(s.layout.rightW + delta, CLAMP.rightW) } })),

@@ -140,7 +140,15 @@ Kế hoạch chi tiết 22 unit (U1–U22) — xem workflow `phase34-understand`
   Shift+O) tái dùng `.finder*`, lọc theo tên, badge theo kind, nhảy editor đang mở qua `revealPosition`.
   32 cargo + 23 vitest; backend live-verified (curl) cả 5 ngôn ngữ. **Giới hạn heuristic:** field/property
   không có access-modifier (vd `state = 0`) bỏ qua để tránh nhiễu object-literal; signature đa dòng bỏ qua.
-- ⏳ **Còn lại (không cần cài)**: U14/U15 Run config (WS stream) · U21 Problems panel.
+- ✅ **Run configuration (U14/U15)** — Rust WS `/ws/run` (`core/src/runner.rs`, tokio async process):
+  `{start,command}`/`{stop}` → `{started,output(stream),exit(code)}`; spawn `sh -c` ở project root, stream
+  stdout/stderr, **kill cả process group** (`process_group(0)` + `libc::kill(-pid)`) nên `stop`/disconnect
+  giết cả tiến trình cháu (sleep…) — tránh treo do pipe orphan. UI: tool window thứ hai ở bottom bar
+  (`bottomView:'terminal'|'run'`), Terminal vẫn mounted khi xem Run; WS sống ở module `runnerService.ts`
+  (run sống sót khi đổi view); store riêng `runStore.ts` (configs persisted + output capped 1MB),
+  `RunPanel` (input + saved-config chips + Run/Stop + output ANSI-stripped `ansi.ts`). 32 cargo + 27 vitest;
+  backend live-verified (WS client): stdout/stderr/exit, cwd=root, stop giết group ~0.5s không orphan, empty→-1.
+- ⏳ **Còn lại (không cần cài)**: U21 Problems panel (parse output của Run/lint khi chưa có LSP).
 - ⛔ **Chặn (cần cài đặt)**: U18 LSP transport (scaffold chạy được nhưng trơ tới khi cài server) · U19/U20 LSP
   features (cần `monaco-languageclient` + ≥1 server, vd `typescript-language-server`) · U22 DAP (Phase 4,
   thiếu mọi adapter). Quyết định cài đặt để mở khoá — chờ xác nhận.

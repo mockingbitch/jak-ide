@@ -8,6 +8,7 @@ import { FindInFiles } from './components/FindInFiles';
 import { EditorGroupView } from './components/EditorGroupView';
 import { ChatPanel } from './components/ChatPanel';
 import { TerminalPanel } from './components/TerminalPanel';
+import { RunPanel } from './components/RunPanel';
 import { Splitter } from './components/Splitter';
 import { StatusBar } from './components/StatusBar';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -18,7 +19,7 @@ import { GitPanel } from './components/GitPanel';
 import { MainMenu } from './components/MainMenu';
 import { BranchWidget } from './components/BranchWidget';
 import { FolderPicker } from './components/FolderPicker';
-import { IconProject, IconSearch, IconSettings, IconAI, IconTerminal, IconBranch } from './components/icons';
+import { IconProject, IconSearch, IconSettings, IconAI, IconTerminal, IconBranch, IconRun } from './components/icons';
 
 export default function App() {
   const layout = useStore((s) => s.layout);
@@ -35,7 +36,7 @@ export default function App() {
   const setFonts = useStore((s) => s.setFonts);
   const selectLeftView = useStore((s) => s.selectLeftView);
   const toggleRight = useStore((s) => s.toggleRight);
-  const toggleBottom = useStore((s) => s.toggleBottom);
+  const selectBottomView = useStore((s) => s.selectBottomView);
   const folderPickerOpen = useStore((s) => s.folderPickerOpen);
   const openFolderPicker = useStore((s) => s.openFolderPicker);
   const closeFolderPicker = useStore((s) => s.closeFolderPicker);
@@ -216,19 +217,36 @@ export default function App() {
             <>
               <Splitter orientation="h" onDelta={(d) => resizeBottom(-d)} />
               <div className="tw tw-bottom" style={{ height: layout.bottomH }}>
-                <TerminalPanel />
+                {/* Terminal stays mounted (its PTY sessions keep running) even when the
+                    Run view is showing; Run can mount/unmount (its WS lives in runnerService). */}
+                <div className="bottom-view" style={{ display: layout.bottomView === 'terminal' ? 'flex' : 'none' }}>
+                  <TerminalPanel />
+                </div>
+                {layout.bottomView === 'run' && (
+                  <div className="bottom-view">
+                    <RunPanel />
+                  </div>
+                )}
               </div>
             </>
           )}
 
           <div className="bottom-bar">
             <button
-              className={'bottom-btn' + (layout.bottomOpen ? ' active' : '')}
-              onClick={toggleBottom}
-              title="Toggle Terminal"
+              className={'bottom-btn' + (layout.bottomOpen && layout.bottomView === 'terminal' ? ' active' : '')}
+              onClick={() => selectBottomView('terminal')}
+              title="Terminal"
             >
               <IconTerminal size={15} />
               Terminal
+            </button>
+            <button
+              className={'bottom-btn' + (layout.bottomOpen && layout.bottomView === 'run' ? ' active' : '')}
+              onClick={() => selectBottomView('run')}
+              title="Run"
+            >
+              <IconRun size={13} />
+              Run
             </button>
           </div>
         </div>

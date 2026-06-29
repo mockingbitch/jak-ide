@@ -1,0 +1,140 @@
+/* ---- bottom tool-window views (Terminal / Run) ---- */
+.bottom-view {
+  height: 100%;
+  min-height: 0;
+}
+.bottom-view > .terminal-panel {
+  height: 100%;
+}
+
+/* ---- Run tool window ---- */
+.run-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.run-input-row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.run-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  box-sizing: border-box;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  font-size: 12px;
+  font-family: var(--mono-font, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  padding: 0 8px;
+  outline: none;
+}
+.run-input:focus {
+  border-color: var(--accent);
+}
+
+.run-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--run-green);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.run-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.run-btn:disabled {
+  opacity: 0.45;
+}
+.run-btn.stop {
+  background: var(--danger);
+}
+
+.run-configs {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.run-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 4px 0 8px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--fg);
+  font-size: 11px;
+  cursor: pointer;
+  max-width: 220px;
+}
+.run-chip:hover {
+  border-color: var(--accent);
+}
+.run-chip-x {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--fg-dim);
+  border-radius: 50%;
+  font-size: 13px;
+  line-height: 1;
+}
+.run-chip-x:hover {
+  color: var(--fg);
+  background: var(--hover);
+}
+
+.run-output {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--editor-bg);
+  color: var(--editor-fg);
+  font-family: var(--mono-font, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.run-status {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  min-height: 22px;
+}
+.run-running {
+  color: var(--accent);
+}
+.run-ok {
+  color: var(--run-green);
+}
+.run-fail {
+  color: var(--danger);
+}

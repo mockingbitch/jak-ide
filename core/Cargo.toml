@@ -29,6 +29,8 @@ grep-matcher = "0.1"
 regex = "1"
 # Live index updates (Stage 1b)
 notify = "6"
+# Kill a run's whole process group (the streaming runner, U14/U15)
+libc = "0.2"
 
 [profile.release]
 opt-level = "z"
