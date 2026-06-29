@@ -69,20 +69,26 @@ async fn run_command(State(st): State<Arc<AppState>>, Json(b): Json<RunBody>) ->
     Ok(Json(json!(execute(&trimmed, &st).await)))
 }
 
-async fn execute(trimmed: &str, st: &AppState) -> RunResult {
-    if trimmed.is_empty() {
-        return fail(trimmed, "Empty command");
+/// Shared guard (reused by the AI engine's run_command tool): reject shell
+/// operators, then allowlist the first token.
+pub fn validate(command: &str) -> Result<(), String> {
+    if command.is_empty() {
+        return Err("Empty command".into());
     }
-    if has_shell_meta(trimmed) {
-        return fail(
-            trimmed,
-            "Command contains disallowed shell operators (; & | ` $ < > ...). Run a single command at a time.",
-        );
+    if has_shell_meta(command) {
+        return Err("Command contains disallowed shell operators (; & | ` $ < > ...). Run a single command at a time.".into());
     }
     let allowed = allowed_commands();
-    let bin = trimmed.split_whitespace().next().unwrap_or("");
+    let bin = command.split_whitespace().next().unwrap_or("");
     if !allowed.iter().any(|a| a == bin) {
-        return fail(trimmed, format!("Command \"{bin}\" is not in the allowlist. Allowed: {}", allowed.join(", ")));
+        return Err(format!("Command \"{bin}\" is not in the allowlist. Allowed: {}", allowed.join(", ")));
+    }
+    Ok(())
+}
+
+async fn execute(trimmed: &str, st: &AppState) -> RunResult {
+    if let Err(e) = validate(trimmed) {
+        return fail(trimmed, e);
     }
 
     let child = Command::new("sh")

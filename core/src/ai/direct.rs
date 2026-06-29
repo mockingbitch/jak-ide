@@ -142,22 +142,30 @@ fn assistant_content(turn: &Turn) -> Value {
     Value::Array(blocks)
 }
 
-/// Extract complete SSE event JSON values from a buffer, returning the leftover.
-fn drain_sse(buf: &str) -> (Vec<Value>, String) {
+fn find_sub(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    hay.windows(needle.len()).position(|w| w == needle)
+}
+
+/// Extract complete SSE event JSON values from a byte buffer, returning the leftover
+/// bytes. Operates on bytes (not a lossy-decoded string) so a multi-byte UTF-8 char
+/// split across network chunks isn't corrupted — only fully-received event blocks
+/// (which end on a `\n`, an ASCII byte) are decoded, and the partial tail is kept.
+fn drain_sse(buf: &[u8]) -> (Vec<Value>, Vec<u8>) {
     let mut events = Vec::new();
-    let mut rest = buf;
-    while let Some(pos) = rest.find("\n\n") {
-        let (block, after) = rest.split_at(pos);
-        for line in block.lines() {
-            if let Some(data) = line.strip_prefix("data:") {
-                if let Ok(v) = serde_json::from_str::<Value>(data.trim()) {
-                    events.push(v);
+    let mut start = 0;
+    while let Some(rel) = find_sub(&buf[start..], b"\n\n") {
+        if let Ok(s) = std::str::from_utf8(&buf[start..start + rel]) {
+            for line in s.lines() {
+                if let Some(data) = line.strip_prefix("data:") {
+                    if let Ok(v) = serde_json::from_str::<Value>(data.trim()) {
+                        events.push(v);
+                    }
                 }
             }
         }
-        rest = &after[2..];
+        start += rel + 2;
     }
-    (events, rest.to_string())
+    (events, buf[start..].to_vec())
 }
 
 // ---- engine ----
@@ -167,6 +175,9 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, root: PathB
     let client = reqwest::Client::new();
 
     for _ in 0..MAX_ITERATIONS {
+        if tx.is_closed() {
+            return; // client gone — stop before another API call / tool round
+        }
         let (headers, base_url) = match auth_headers().await {
             Ok(h) => h,
             Err(e) => {
@@ -202,11 +213,11 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, root: PathB
         }
 
         let mut turn = Turn::default();
-        let mut buf = String::new();
+        let mut buf: Vec<u8> = Vec::new();
         let mut bytes = resp.bytes_stream();
         'read: while let Some(chunk) = bytes.next().await {
             let Ok(chunk) = chunk else { break };
-            buf.push_str(&String::from_utf8_lossy(&chunk));
+            buf.extend_from_slice(&chunk);
             let (events, rest) = drain_sse(&buf);
             buf = rest;
             for ev in events {
@@ -239,6 +250,9 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, root: PathB
         // Execute each tool call, stream the activity, and collect results.
         let mut results = Vec::new();
         for tu in &turn.tool_uses {
+            if tx.is_closed() {
+                return; // never edit files / run commands for a disconnected client
+            }
             let _ = tx.send(evt(json!({ "type": "tool_use", "id": tu.id, "name": tu.name, "input": tu.input }))).await;
             let r = exec_tool(&root, &tu.name, &tu.input).await;
             if let Some(fc) = &r.file_change {
@@ -392,10 +406,15 @@ fn apply_edit(root: &Path, rel: &str, search: &str, replace: &str) -> ToolResult
     let Ok(before) = std::fs::read_to_string(&abs) else {
         return err_result(format!("File not found: {rel}. Use write_file to create it."), format!("edit {rel} (not found)"));
     };
-    if search.is_empty() || !before.contains(search) {
-        return err_result(format!("Could not find the search snippet in {rel}."), format!("edit {rel} (not found)"));
+    if search.is_empty() {
+        return err_result(format!("Empty search snippet for {rel}."), format!("edit {rel} (empty search)"));
     }
-    let after = before.replace(search, replace);
+    let Some(idx) = before.find(search) else {
+        return err_result(format!("Could not find the search snippet in {rel}."), format!("edit {rel} (not found)"));
+    };
+    // Replace only the FIRST occurrence (a minimal, targeted edit) — never sweep
+    // every match, which could corrupt unrelated code.
+    let after = format!("{}{}{}", &before[..idx], replace, &before[idx + search.len()..]);
     if std::fs::write(&abs, &after).is_err() {
         return err_result(format!("Could not write {rel}."), format!("edit {rel} (write failed)"));
     }
@@ -424,8 +443,9 @@ fn write_file(root: &Path, rel: &str, content: &str) -> ToolResult {
 }
 
 async fn run_command(root: &Path, command: &str) -> ToolResult {
-    if command.trim().is_empty() {
-        return err_result("Empty command".into(), "$ (empty)".into());
+    // Same allowlist + shell-operator guard as POST /api/run-command (parity with Node).
+    if let Err(e) = crate::run::validate(command.trim()) {
+        return err_result(e, format!("$ {command}"));
     }
     let child = tokio::process::Command::new("sh")
         .arg("-c")
@@ -509,12 +529,26 @@ mod tests {
 
     #[test]
     fn drain_sse_splits_events_and_keeps_remainder() {
-        let buf = "event: x\ndata: {\"type\":\"a\"}\n\nevent: y\ndata: {\"type\":\"b\"}\n\ndata: {\"partial";
+        let buf = b"event: x\ndata: {\"type\":\"a\"}\n\nevent: y\ndata: {\"type\":\"b\"}\n\ndata: {\"partial";
         let (events, rest) = drain_sse(buf);
         assert_eq!(events.len(), 2);
         assert_eq!(events[0]["type"], "a");
         assert_eq!(events[1]["type"], "b");
-        assert_eq!(rest, "data: {\"partial");
+        assert_eq!(rest, b"data: {\"partial");
+    }
+
+    #[test]
+    fn drain_sse_preserves_multibyte_char_split_across_chunks() {
+        // "✅" (E2 9C 85) cut mid-character: the partial bytes must be retained, not
+        // lossily decoded, so the char survives once the rest of the chunk arrives.
+        let full = "data: {\"t\":\"✅\"}\n\n".as_bytes().to_vec();
+        let cut = "data: {\"t\":\"".len() + 1; // 1 byte into the emoji
+        let (e1, mut rest) = drain_sse(&full[..cut]);
+        assert!(e1.is_empty());
+        rest.extend_from_slice(&full[cut..]);
+        let (e2, _) = drain_sse(&rest);
+        assert_eq!(e2.len(), 1);
+        assert_eq!(e2[0]["t"], "✅");
     }
 
     #[test]
@@ -570,5 +604,9 @@ mod tests {
         assert_eq!(fc.after, "hello rust");
         // missing snippet → error
         assert!(!apply_edit(&dir, "a.txt", "nope", "x").ok);
+        // replaces only the FIRST occurrence
+        std::fs::write(dir.join("m.txt"), "a a a").unwrap();
+        assert!(apply_edit(&dir, "m.txt", "a", "b").ok);
+        assert_eq!(std::fs::read_to_string(dir.join("m.txt")).unwrap(), "b a a");
     }
 }
