@@ -103,9 +103,23 @@ async function startBackends() {
   if (!fs.existsSync(coreBin)) return nodePort;
 
   const corePort = await findFreePort();
+  // Let the core's LSP bridge find language servers: prefer the opened project's
+  // node_modules/.bin, then the ones bundled with the app.
+  const lspBinDirs = [
+    path.join(projectRoot, 'node_modules', '.bin'),
+    path.join(__dirname, 'node_modules', '.bin'),
+  ].filter((d) => {
+    try {
+      return fs.existsSync(d);
+    } catch {
+      return false;
+    }
+  });
+  const corePath = [...lspBinDirs, process.env.PATH || ''].join(path.delimiter);
   coreProc = spawn(coreBin, [], {
     env: {
       ...process.env,
+      PATH: corePath,
       JAKIDE_CORE_PORT: String(corePort),
       JAKIDE_NODE_PORT: String(nodePort),
       JAKIDE_DESKTOP: '1',

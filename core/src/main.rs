@@ -9,6 +9,7 @@ mod fonts;
 mod git;
 mod health;
 mod index;
+mod lsp;
 mod paths;
 mod projects;
 mod proxy;
@@ -44,6 +45,7 @@ async fn main() {
         .merge(terminal::router())
         .merge(run::router())
         .merge(runner::router())
+        .merge(lsp::router())
         .merge(auth::router())
         .merge(ai::router())
         // Static renderer (+ direct-API AI) still served by Node.

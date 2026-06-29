@@ -155,9 +155,18 @@ Kế hoạch chi tiết 22 unit (U1–U22) — xem workflow `phase34-understand`
   `useOpenFileAt` (path chuẩn hoá về relative: bỏ prefix projectRoot + `./`). Derive qua hook `useProblems`
   (memo theo output). 32 vitest (+5 parser). Thuần frontend (parse text nhẹ, không cần Rust round-trip).
 - ✅ **Hoàn tất mọi unit Phase 3 KHÔNG bị chặn** (U1–U16, U21). Chỉ còn LSP/DAP cần cài server/adapter.
-- ⛔ **Chặn (cần cài đặt)**: U18 LSP transport (scaffold chạy được nhưng trơ tới khi cài server) · U19/U20 LSP
-  features (cần `monaco-languageclient` + ≥1 server, vd `typescript-language-server`) · U22 DAP (Phase 4,
-  thiếu mọi adapter). Quyết định cài đặt để mở khoá — chờ xác nhận.
+### LSP (Phase 3, đang mở khoá)
+- ✅ **U18 LSP transport** — Rust bridge `core/src/lsp.rs`: WS `GET /ws/lsp?lang=` spawn language server
+  (cwd=project root), cầu JSON-RPC: stdio **Content-Length framed** ↔ WS **bare JSON/frame** (chuẩn
+  `vscode-ws-jsonrpc`); kill khi disconnect. `server_for` map lang→cmd (typescript ✅ cài; python/go/php
+  để sẵn override env). `typescript-language-server`+`typescript` = dependency của `desktop`; dev-core.mjs +
+  main.js prepend `node_modules/.bin` (project trước, rồi bundle) vào PATH của core. 3 cargo test (parser
+  framing). **Live-verified**: `initialize` → capabilities (hover/completion/definition=true) @314ms.
+- ⏳ **U19/U20 LSP features (frontend)** — tự viết client LSP gọn (JSON-RPC/WS + đăng ký Monaco
+  completion/hover/definition + diagnostics→markers), **tránh** `monaco-languageclient` v9 vì đòi
+  `@codingame/monaco-vscode-api` xung đột vanilla monaco 0.55 + `@monaco-editor/react`.
+- ⛔ **Còn chặn**: thêm server cho PHP/Python/Go (cài intelephense/pyright/gopls) · U22 DAP (Phase 4,
+  thiếu adapter).
 
 ---
 

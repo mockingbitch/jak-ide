@@ -33,6 +33,14 @@ const env = {
   PROJECT_ROOT: projectRoot(),
 };
 
+// Let the core's LSP bridge find language servers: prefer the opened project's
+// node_modules/.bin, then the bundled ones in desktop/node_modules/.bin.
+const lspBinDirs = [
+  path.join(env.PROJECT_ROOT, 'node_modules', '.bin'),
+  path.join(here, '..', 'node_modules', '.bin'),
+].filter((d) => fs.existsSync(d));
+env.PATH = [...lspBinDirs, process.env.PATH || ''].join(path.delimiter);
+
 const debugBin = path.join(coreDir, 'target', 'debug', 'jakide-core');
 const useBin = fs.existsSync(debugBin);
 const cargo = useBin ? null : resolveCargo();
