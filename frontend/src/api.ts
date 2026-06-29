@@ -43,10 +43,50 @@ export const searchFiles = (q: string, limit = 50): Promise<{ results: string[] 
 export interface TextHit {
   path: string;
   line: number;
+  /** 1-based column of the first match (UTF-16 units), for editor navigation. */
+  col: number;
+  /** First-match span as UTF-16 offsets into `text`, for highlighting. */
+  matchStart: number;
+  matchEnd: number;
   text: string;
 }
-export const searchText = (q: string, limit = 200): Promise<{ results: TextHit[] }> =>
-  fetch(`/api/search/text?q=${encodeURIComponent(q)}&limit=${limit}`).then(jsonOrThrow);
+
+/** Content-search options shared by Find in Files search + replace. */
+export interface FindOpts {
+  regex: boolean;
+  caseSensitive: boolean;
+  wholeWord: boolean;
+  /** Comma/newline-separated globs to include; empty = all files. */
+  include: string;
+  /** Comma/newline-separated globs to exclude. */
+  exclude: string;
+}
+
+const findParams = (q: string, o: FindOpts) =>
+  new URLSearchParams({
+    q,
+    regex: String(o.regex),
+    caseSensitive: String(o.caseSensitive),
+    wholeWord: String(o.wholeWord),
+    include: o.include,
+    exclude: o.exclude,
+  });
+
+// `error` is set (with results: []) when the regex/glob is invalid — shown inline.
+export const searchText = (q: string, o: FindOpts, limit = 500): Promise<{ results: TextHit[]; error?: string }> => {
+  const p = findParams(q, o);
+  p.set('limit', String(limit));
+  return fetch(`/api/search/text?${p.toString()}`).then(jsonOrThrow);
+};
+
+/** Replace across the project. `files` restricts the rewrite to specific rel paths. */
+export const replaceInFiles = (
+  q: string,
+  replacement: string,
+  o: FindOpts,
+  files?: string[]
+): Promise<{ ok: boolean; filesChanged: number; replacements: number }> =>
+  POST('/api/search/replace', { q, replacement, ...o, files }).then(jsonOrThrow);
 
 export const getFile = (path: string): Promise<{ content: string; path: string }> =>
   fetch('/api/files/file?path=' + encodeURIComponent(path)).then(jsonOrThrow);

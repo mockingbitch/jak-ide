@@ -4,6 +4,7 @@ import { getHealth, getShells, getAuthStatus, getFonts, getProjects, gitStatus }
 import { applyTheme } from './theme';
 import { useEditorChrome } from './hooks/useEditorChrome';
 import { FileExplorer } from './components/FileExplorer';
+import { FindInFiles } from './components/FindInFiles';
 import { EditorGroupView } from './components/EditorGroupView';
 import { ChatPanel } from './components/ChatPanel';
 import { TerminalPanel } from './components/TerminalPanel';
@@ -101,6 +102,10 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         setFinderOpen(true);
+      } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        const st = useStore.getState();
+        if (!(st.layout.leftOpen && st.layout.leftView === 'search')) st.selectLeftView('search');
       }
     };
     window.addEventListener('keydown', onKey);
@@ -147,6 +152,13 @@ export default function App() {
             <IconProject size={18} />
           </ActivityButton>
           <ActivityButton
+            label="Find in Files (Ctrl Shift F)"
+            active={layout.leftOpen && layout.leftView === 'search'}
+            onClick={() => selectLeftView('search')}
+          >
+            <IconSearch size={18} />
+          </ActivityButton>
+          <ActivityButton
             label="Version Control"
             active={layout.leftOpen && layout.leftView === 'git'}
             onClick={() => selectLeftView('git')}
@@ -164,7 +176,13 @@ export default function App() {
             {layout.leftOpen && (
               <>
                 <div className="tw tw-left" style={{ width: layout.leftW }}>
-                  {layout.leftView === 'git' ? <GitPanel /> : <FileExplorer />}
+                  {layout.leftView === 'git' ? (
+                    <GitPanel />
+                  ) : layout.leftView === 'search' ? (
+                    <FindInFiles />
+                  ) : (
+                    <FileExplorer />
+                  )}
                 </div>
                 <Splitter orientation="v" onDelta={resizeLeft} />
               </>

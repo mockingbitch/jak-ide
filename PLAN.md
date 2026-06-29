@@ -124,8 +124,16 @@ Kế hoạch chi tiết 22 unit (U1–U22) — xem workflow `phase34-understand`
   rebase cả aux tab; EXDEV cleanup + spawn_blocking; refresh index sau create/mkdir/delete; remove an toàn
   symlink). Hoãn vài low/edge: clipboard copy auto-suffix, auto-expand thư mục sau create, TOCTOU rename,
   copy đi theo symlink (đã ghi chú; nhất quán với giới hạn symlink của resolve_safe).
-- ⏳ **Còn lại (không cần cài)**: U10 search regex/case/word+glob → U11 replace toàn dự án → U12 Find-in-Files
-  panel · U14/U15 Run config (WS stream) · U16 Go to Symbol (heuristic Rust) · U21 Problems panel.
+- ✅ **Find in Files (U10–U12)** — Rust `GET /api/search/text` mở rộng options (regex · caseSensitive ·
+  wholeWord · include/exclude globs qua `ignore::overrides`), trả match offset (UTF-16) + invalid-regex/glob
+  → 200 kèm `error` inline. Rust `POST /api/search/replace` (crate `regex`): replace toàn dự án hoặc giới hạn
+  theo `files`, literal dùng `NoExpand` ($/\ an toàn), regex expand `${1}`/`${name}`, path-safe + off-thread.
+  UI: tool window thứ ba ở activity bar (`leftView:'search'`, Ctrl/Cmd+Shift+F) — `FindInFiles` + `FindResults`
+  (nhóm theo file, collapse/dismiss, highlight match, click → mở file tại dòng qua `useOpenFileAt`), store
+  riêng `lib/findStore.ts` (store chính đã >500 LOC). 24 cargo + 23 vitest; backend live-verified (curl) toàn
+  bộ option + replace. **Lưu ý:** replacement dùng cú pháp Rust `regex` (`${1}`, không phải JS `$1`).
+- ⏳ **Còn lại (không cần cài)**: U14/U15 Run config (WS stream) · U16 Go to Symbol (heuristic Rust) ·
+  U21 Problems panel.
 - ⛔ **Chặn (cần cài đặt)**: U18 LSP transport (scaffold chạy được nhưng trơ tới khi cài server) · U19/U20 LSP
   features (cần `monaco-languageclient` + ≥1 server, vd `typescript-language-server`) · U22 DAP (Phase 4,
   thiếu mọi adapter). Quyết định cài đặt để mở khoá — chờ xác nhận.

@@ -27,7 +27,7 @@ export interface Layout {
   leftW: number;
   rightW: number;
   bottomH: number;
-  leftView: 'project' | 'git';
+  leftView: 'project' | 'git' | 'search';
 }
 
 const DEFAULT_LAYOUT: Layout = {
@@ -209,7 +209,7 @@ interface State {
   toggleLeft: () => void;
   toggleRight: () => void;
   toggleBottom: () => void;
-  selectLeftView: (view: 'project' | 'git') => void;
+  selectLeftView: (view: 'project' | 'git' | 'search') => void;
   resizeLeft: (delta: number) => void;
   resizeRight: (delta: number) => void;
   resizeBottom: (delta: number) => void;
