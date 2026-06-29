@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveCargo } from './resolve-cargo.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..');
@@ -34,9 +35,15 @@ const env = {
 
 const debugBin = path.join(coreDir, 'target', 'debug', 'jakide-core');
 const useBin = fs.existsSync(debugBin);
-const cmd = useBin ? debugBin : 'cargo';
+const cargo = useBin ? null : resolveCargo();
+if (!useBin && !cargo) {
+  console.error('[dev-core] no prebuilt debug binary and cargo not found on PATH or in ~/.cargo/bin.');
+  console.error('[dev-core] install the Rust toolchain (https://rustup.rs) or set $CARGO.');
+  process.exit(1);
+}
+const cmd = useBin ? debugBin : cargo;
 const args = useBin ? [] : ['run'];
-console.log(`[dev-core] ${useBin ? debugBin : 'cargo run'} | PROJECT_ROOT=${env.PROJECT_ROOT} | core:${env.JAKIDE_CORE_PORT} -> node:${env.JAKIDE_NODE_PORT}`);
+console.log(`[dev-core] ${useBin ? debugBin : `${cargo} run`} | PROJECT_ROOT=${env.PROJECT_ROOT} | core:${env.JAKIDE_CORE_PORT} -> node:${env.JAKIDE_NODE_PORT}`);
 
 const child = spawn(cmd, args, { cwd: coreDir, env, stdio: 'inherit' });
 child.on('exit', (code) => process.exit(code ?? 0));
