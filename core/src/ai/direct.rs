@@ -20,7 +20,7 @@ use crate::auth::{env_api_key, get_oauth_cred, OAUTH_BETA};
 use crate::paths::resolve_safe;
 use crate::state::ignored_dirs;
 
-use super::AiContext;
+use super::{AiContext, ChatOptions, Image};
 
 const MAX_ITERATIONS: usize = 20;
 const MAX_READ_CHARS: usize = 100_000;
@@ -170,8 +170,9 @@ fn drain_sse(buf: &[u8]) -> (Vec<Value>, Vec<u8>) {
 
 // ---- engine ----
 
-pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, root: PathBuf, model: String, tx: Sender<Event>) {
-    let mut api_messages = build_initial_messages(&messages, &ctx, &root).await;
+pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, images: Vec<Image>, options: ChatOptions, root: PathBuf, default_model: String, tx: Sender<Event>) {
+    let model = if !options.model.is_empty() && options.model != "default" { options.model.clone() } else { default_model };
+    let mut api_messages = build_initial_messages(&messages, &ctx, &images, &root).await;
     let client = reqwest::Client::new();
 
     for _ in 0..MAX_ITERATIONS {
@@ -269,7 +270,7 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, root: PathB
     let _ = tx.send(evt(json!({ "type": "done" }))).await;
 }
 
-async fn build_initial_messages(messages: &[(String, String)], ctx: &AiContext, root: &Path) -> Vec<Value> {
+async fn build_initial_messages(messages: &[(String, String)], ctx: &AiContext, images: &[Image], root: &Path) -> Vec<Value> {
     let mut out: Vec<Value> = Vec::new();
     if messages.is_empty() {
         return out;
@@ -280,7 +281,17 @@ async fn build_initial_messages(messages: &[(String, String)], ctx: &AiContext, 
     }
     if last_role == "user" {
         let block = context_block(ctx, root).await;
-        out.push(json!({ "role": "user", "content": format!("{block}\n\n## User request\n{last_content}") }));
+        let text = format!("{block}\n\n## User request\n{last_content}");
+        if images.is_empty() {
+            out.push(json!({ "role": "user", "content": text }));
+        } else {
+            // Multimodal turn: text block + base64 image blocks.
+            let mut content = vec![json!({ "type": "text", "text": text })];
+            for img in images {
+                content.push(json!({ "type": "image", "source": { "type": "base64", "media_type": img.media_type, "data": img.data } }));
+            }
+            out.push(json!({ "role": "user", "content": content }));
+        }
     } else {
         out.push(json!({ "role": last_role, "content": last_content }));
     }

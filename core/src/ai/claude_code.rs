@@ -13,7 +13,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::mpsc::Sender;
 
-use super::AiContext;
+use super::{AiContext, ChatOptions, Image};
 use crate::state::ignored_dirs;
 
 const ALLOWED_TOOLS: &[&str] = &["Read", "Edit", "Write", "MultiEdit", "Grep", "Glob"];
@@ -129,7 +129,7 @@ fn ev(v: Value) -> Event {
 
 /// Run a turn through `claude -p`, streaming events to `tx`. Returns when the CLI
 /// finishes (or the client disconnects, in which case the child is killed).
-pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, root: PathBuf, tx: Sender<Event>) {
+pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, images: Vec<Image>, options: ChatOptions, root: PathBuf, tx: Sender<Event>) {
     let snap_root = root.clone();
     let snap = tokio::task::spawn_blocking(move || snapshot(&snap_root)).await.unwrap_or(Snapshot {
         content: HashMap::new(),
@@ -137,8 +137,23 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, root: PathB
     });
     let prompt = build_prompt(&messages, &ctx);
 
-    let mut args: Vec<&str> = vec!["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits", "--allowedTools"];
-    args.extend_from_slice(ALLOWED_TOOLS);
+    // Images travel via stream-json input (a user message with base64 image blocks);
+    // the plain-text path stays the default for the common no-image case.
+    let use_stream_input = !images.is_empty();
+    let perm = if options.permission_mode.is_empty() { "acceptEdits".to_string() } else { options.permission_mode.clone() };
+    let mut args: Vec<String> = vec!["-p".into(), "--output-format".into(), "stream-json".into(), "--verbose".into(), "--permission-mode".into(), perm];
+    if use_stream_input {
+        args.push("--input-format".into());
+        args.push("stream-json".into());
+    }
+    if !options.model.is_empty() && options.model != "default" {
+        args.push("--model".into());
+        args.push(options.model.clone());
+    }
+    args.push("--allowedTools".into());
+    for t in ALLOWED_TOOLS {
+        args.push((*t).to_string());
+    }
 
     let spawned = Command::new("claude")
         .args(&args)
@@ -158,7 +173,18 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, root: PathB
     };
 
     if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(prompt.as_bytes()).await;
+        if use_stream_input {
+            // One stream-json user message carrying the prompt + base64 image blocks.
+            let mut content = vec![json!({ "type": "text", "text": prompt })];
+            for img in &images {
+                content.push(json!({ "type": "image", "source": { "type": "base64", "media_type": img.media_type, "data": img.data } }));
+            }
+            let msg = json!({ "type": "user", "message": { "role": "user", "content": content } });
+            let _ = stdin.write_all(msg.to_string().as_bytes()).await;
+            let _ = stdin.write_all(b"\n").await;
+        } else {
+            let _ = stdin.write_all(prompt.as_bytes()).await;
+        }
         let _ = stdin.shutdown().await; // EOF so `claude` starts processing
     }
 

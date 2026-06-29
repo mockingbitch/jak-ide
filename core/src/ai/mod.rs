@@ -61,11 +61,33 @@ struct ChatMsg {
     content: String,
 }
 
+/// Native Claude options surfaced in the UI (model + permission mode).
+#[derive(Deserialize, Default, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ChatOptions {
+    /// Model alias/full name (e.g. "opus", "sonnet"); empty/"default" = the engine default.
+    pub model: String,
+    /// Claude Code permission mode: default | acceptEdits | plan | bypassPermissions.
+    pub permission_mode: String,
+}
+
+/// An attached image for the current turn (base64, no data: prefix).
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Image {
+    pub media_type: String,
+    pub data: String,
+}
+
 #[derive(Deserialize)]
 struct ChatBody {
     messages: Option<Vec<ChatMsg>>,
     #[serde(default)]
     context: Option<AiContext>,
+    #[serde(default)]
+    options: Option<ChatOptions>,
+    #[serde(default)]
+    images: Option<Vec<Image>>,
 }
 
 async fn chat(State(st): State<Arc<AppState>>, req: Request) -> Response {
@@ -94,18 +116,20 @@ async fn chat(State(st): State<Arc<AppState>>, req: Request) -> Response {
         .map(|m| (m.role, m.content))
         .collect();
     let ctx = body.context.unwrap_or_default();
+    let options = body.options.unwrap_or_default();
+    let images = body.images.unwrap_or_default();
 
     let (tx, rx) = mpsc::channel::<Event>(64);
     let root = st.root();
     if method == "claude-code" {
         tokio::spawn(async move {
-            claude_code::stream(messages, ctx, root, tx).await;
+            claude_code::stream(messages, ctx, images, options, root, tx).await;
         });
     } else if method == "apikey" || method == "oauth" {
         // native direct-API engine (reached only when JAKIDE_NATIVE_AI=1)
-        let model = st.model.clone();
+        let default_model = st.model.clone();
         tokio::spawn(async move {
-            direct::stream(messages, ctx, root, model, tx).await;
+            direct::stream(messages, ctx, images, options, root, default_model, tx).await;
         });
     } else {
         // none → emit the "not connected" guidance, then done.

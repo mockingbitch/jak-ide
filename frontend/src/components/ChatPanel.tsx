@@ -1,63 +1,57 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore, activeFileTab } from '../store';
-import { getFile, saveFile, deleteFileApi, getAuthStatus, authLogin } from '../api';
-import type { ChatMessage, ChatStreamEvent, MessagePart } from '../types';
+import { getAuthStatus, authLogin } from '../api';
+import { useChatStream } from '../hooks/useChatStream';
+import { useAiStore } from '../lib/aiStore';
+import { fileToImage, imagesFromDataTransfer, type AttachedImage } from '../lib/imageAttach';
+import { ChatMessageView } from './chat/ChatMessage';
+import { ChatComposer } from './chat/ChatComposer';
+import { ChatChanges } from './chat/ChatChanges';
+import { IconPlus } from './icons';
 
-const TOOL_ICON: Record<string, string> = {
-  // JakIDE SDK-agent tools
-  read_file: '📖',
-  list_dir: '📂',
-  apply_edit: '✏️',
-  write_file: '📝',
-  run_command: '▶',
-  // Claude Code tools
-  Read: '📖',
-  LS: '📂',
-  Glob: '🔎',
-  Grep: '🔎',
-  Edit: '✏️',
-  MultiEdit: '✏️',
-  Write: '📝',
-  Bash: '▶',
-  Task: '🤖',
-  WebSearch: '🌐',
-  WebFetch: '🌐',
-  TodoWrite: '🗒️',
-};
-
-function toolLabel(name: string, input: unknown, summary?: string): string {
-  if (summary) return summary;
-  const arg = input && typeof input === 'object' ? (input as Record<string, unknown>) : undefined;
-  const path = typeof arg?.path === 'string' ? arg.path : typeof arg?.command === 'string' ? arg.command : '';
-  return `${name}${path ? ' ' + path : ''}`;
-}
+const SUGGESTIONS = ['Explain this file', 'Find a bug', 'Add tests', 'Write a commit message'];
 
 export function ChatPanel() {
   const messages = useStore((s) => s.messages);
   const setMessages = useStore((s) => s.setMessages);
-  const selection = useStore((s) => s.selection);
   const auth = useStore((s) => s.auth);
   const setAuth = useStore((s) => s.setAuth);
   const model = useStore((s) => s.model);
-  const openTab = useStore((s) => s.openTab);
-  const refreshTab = useStore((s) => s.refreshTab);
-  const applyAiChange = useStore((s) => s.applyAiChange);
-  const closeTab = useStore((s) => s.closeTab);
-  const recordChange = useStore((s) => s.recordChange);
-  const clearChange = useStore((s) => s.clearChange);
-  const clearAllChanges = useStore((s) => s.clearAllChanges);
-  const bumpGitRefresh = useStore((s) => s.bumpGitRefresh);
-  const changes = useStore((s) => s.changes);
-  const file = useStore(activeFileTab);
-
   const authBusy = useStore((s) => s.authBusy);
   const setAuthBusy = useStore((s) => s.setAuthBusy);
-  const [input, setInput] = useState('');
-  const [busy, setBusy] = useState(false);
+  const file = useStore(activeFileTab);
+  const permissionMode = useAiStore((s) => s.permissionMode);
+
+  const { send, stop, busy } = useChatStream();
+  const [attachments, setAttachments] = useState<AttachedImage[]>([]);
+  const [dragging, setDragging] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
 
+  // Stick to the bottom as the conversation grows / streams.
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  const addFiles = async (files: File[]) => {
+    for (const f of files) {
+      try {
+        const img = await fileToImage(f);
+        setAttachments((prev) => [...prev, img]);
+      } catch (e) {
+        alert((e as Error).message);
+      }
+    }
+  };
+  const removeImage = (id: string) => setAttachments((prev) => prev.filter((a) => a.id !== id));
+
+  const onSend = (text: string) => {
+    send(text, attachments);
+    setAttachments([]);
+  };
+
   const signIn = async () => {
-    if (authBusy) return; // a sign-in is already running (possibly from Settings)
+    if (authBusy) return;
     setAuthBusy(true);
     try {
       const r = await authLogin();
@@ -74,286 +68,92 @@ export function ChatPanel() {
     }
   };
 
-  const scroll = () => setTimeout(() => scroller.current?.scrollTo(0, scroller.current.scrollHeight), 0);
-
-  // Mutate the in-progress (last) assistant message.
-  const updateLast = (fn: (m: ChatMessage) => ChatMessage) =>
-    setMessages((prev) => {
-      const c = [...prev];
-      c[c.length - 1] = fn(c[c.length - 1]);
-      return c;
-    });
-
-  const appendText = (text: string) =>
-    updateLast((m) => {
-      const parts = [...(m.parts ?? [])];
-      const last = parts[parts.length - 1];
-      if (last && last.kind === 'text') parts[parts.length - 1] = { kind: 'text', text: last.text + text };
-      else parts.push({ kind: 'text', text });
-      return { ...m, parts };
-    });
-
-  const send = async () => {
-    const text = input.trim();
-    if (!text || busy) return;
-    setInput('');
-
-    // Build text-only history for the API from prior turns.
-    const apiHistory = messages
-      .map((m) => ({
-        role: m.role,
-        content:
-          m.role === 'user'
-            ? m.content ?? ''
-            : (m.parts ?? [])
-                .filter((p): p is Extract<MessagePart, { kind: 'text' }> => p.kind === 'text')
-                .map((p) => p.text)
-                .join(''),
-      }))
-      .filter((m) => m.content.trim().length > 0);
-    const history = [...apiHistory, { role: 'user' as const, content: text }];
-
-    setMessages((prev) => [
-      ...prev,
-      { role: 'user', content: text },
-      { role: 'assistant', parts: [], thinking: '', streaming: true },
-    ]);
-    setBusy(true);
-    scroll();
-
-    const context = { filePath: file?.path, fileContent: file?.content, selection: selection ?? undefined };
-
-    try {
-      const resp = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, context }),
-      });
-      if (!resp.body) throw new Error('No response stream');
-
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const chunks = buf.split('\n\n');
-        buf = chunks.pop() ?? '';
-        for (const ch of chunks) {
-          const line = ch.trim();
-          if (!line.startsWith('data:')) continue;
-          let evt: ChatStreamEvent;
-          try {
-            evt = JSON.parse(line.slice(5).trim());
-          } catch {
-            continue; // skip a malformed/partial frame instead of aborting the stream
-          }
-          handleEvent(evt);
-          scroll();
-        }
-      }
-      updateLast((m) => ({ ...m, streaming: false }));
-    } catch (e) {
-      appendText(`\n\n⚠️ ${(e as Error).message}`);
-      updateLast((m) => ({ ...m, streaming: false }));
-    } finally {
-      setBusy(false);
-      scroll();
-      bumpGitRefresh(); // the assistant may have edited files → refresh git status
-    }
-  };
-
-  const handleEvent = (evt: ChatStreamEvent) => {
-    switch (evt.type) {
-      case 'text':
-        appendText(evt.text);
-        break;
-      case 'thinking':
-        updateLast((m) => ({ ...m, thinking: (m.thinking ?? '') + evt.text }));
-        break;
-      case 'tool_use':
-        updateLast((m) => ({
-          ...m,
-          parts: [...(m.parts ?? []), { kind: 'tool', id: evt.id, name: evt.name, input: evt.input, status: 'running' }],
-        }));
-        break;
-      case 'tool_result':
-        updateLast((m) => ({
-          ...m,
-          parts: (m.parts ?? []).map((p) =>
-            p.kind === 'tool' && p.id === evt.id ? { ...p, status: evt.ok ? 'done' : 'error', summary: evt.summary } : p
-          ),
-        }));
-        break;
-      case 'file_change':
-        recordChange(evt.path, evt.before, evt.created);
-        applyAiChange(evt.path, evt.after); // updates an open tab, but never clobbers unsaved edits
-        break;
-      case 'error':
-        appendText(`\n\n⚠️ ${evt.error}`);
-        break;
-    }
-  };
-
-  const openChanged = async (path: string) => {
-    try {
-      const f = await getFile(path);
-      openTab({ path: f.path, content: f.content, dirty: false });
-    } catch (e) {
-      alert((e as Error).message);
-    }
-  };
-
-  const revert = async (path: string) => {
-    const entry = changes[path];
-    if (!entry) return;
-    try {
-      if (entry.created) {
-        // The AI created this file — reverting means deleting it, not blanking it.
-        await deleteFileApi(path);
-        closeTab(path);
-      } else {
-        await saveFile(path, entry.before);
-        refreshTab(path, entry.before);
-      }
-      clearChange(path);
-    } catch (e) {
-      alert('Revert failed: ' + (e as Error).message);
-    }
-  };
-
-  const revertAll = async () => {
-    for (const path of Object.keys(changes)) await revert(path);
-  };
-
-  const changedPaths = Object.keys(changes);
-
   return (
-    <div className="chat">
-      <div className="tw-header">
-        <span className="tw-title">AI Assistant</span>
-        <span className="muted">{model}</span>
+    <div
+      className={'chat' + (dragging > 0 ? ' dragover' : '')}
+      onDragEnter={(e) => {
+        if (e.dataTransfer.types.includes('Files')) setDragging((n) => n + 1);
+      }}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+      }}
+      onDragLeave={() => setDragging((n) => Math.max(0, n - 1))}
+      onDrop={(e) => {
+        const imgs = imagesFromDataTransfer(e.dataTransfer);
+        if (imgs.length) {
+          e.preventDefault();
+          addFiles(imgs);
+        }
+        setDragging(0);
+      }}
+    >
+      <div className="chat-header">
+        <span className="chat-title">AI Assistant</span>
+        <span className="chat-model-badge" title="Active model">{model}</span>
+        {messages.length > 0 && (
+          <button className="chat-newchat" title="New chat" onClick={() => setMessages([])}>
+            <IconPlus size={15} />
+          </button>
+        )}
       </div>
+
       {!auth.hasAuth && (
-        <div className="banner">
-          <div className="banner-row">
+        <div className="chat-auth-banner">
+          <div className="chat-banner-row">
             <span>Not connected to Claude.</span>
-            <button className="signin-btn" onClick={signIn} disabled={authBusy}>
-              {authBusy ? 'Finish in your browser…' : 'Sign in with Anthropic'}
+            <button className="chat-signin-btn" onClick={signIn} disabled={authBusy}>
+              {authBusy ? 'Finish in browser…' : 'Sign in'}
             </button>
           </div>
-          <div className="banner-note">
-            {auth.claudeInstalled && 'You have Claude Code — run `claude` and log in, then reload to use it. '}
+          <div className="chat-banner-note">
+            {auth.claudeInstalled && 'You have Claude Code — run `claude` and log in, then reload. '}
             {auth.antInstalled
-              ? '“Sign in” opens your browser to authorize. Or use an API key (File → Set Anthropic API Key, or backend/.env).'
-              : 'Or set an API key (the “Sign in” button needs the Anthropic `ant` CLI installed).'}
+              ? '“Sign in” opens your browser. Or set an API key (File → Set Anthropic API Key).'
+              : 'Or set an API key (the “Sign in” button needs the Anthropic `ant` CLI).'}
           </div>
         </div>
       )}
 
-      {changedPaths.length > 0 && (
-        <div className="changes">
-          <div className="changes-head">
-            <span>Changes ({changedPaths.length})</span>
-            <span className="changes-actions">
-              <button className="link" onClick={clearAllChanges}>
-                Keep all
-              </button>
-              <button className="link danger" onClick={revertAll}>
-                Revert all
-              </button>
-            </span>
-          </div>
-          {changedPaths.map((p) => (
-            <div key={p} className="change-row">
-              <span className="change-path" title={p} onClick={() => openChanged(p)}>
-                {p}
-              </span>
-              <span className="change-btns">
-                <button className="link" onClick={() => clearChange(p)}>
-                  Keep
-                </button>
-                <button className="link danger" onClick={() => revert(p)}>
-                  Revert
-                </button>
-              </span>
+      {permissionMode === 'plan' && (
+        <div className="chat-plan-bar">◇ Plan mode — Claude proposes steps read-only; no files are edited.</div>
+      )}
+
+      <div className="chat-messages" ref={scroller}>
+        {messages.length === 0 ? (
+          <div className="chat-empty">
+            <div className="chat-empty-title">Ask about {file ? <b>{file.path}</b> : 'your code'}</div>
+            <div className="chat-empty-sub">
+              Claude reads and edits files itself — each change appears below as a diff you can Keep or Revert.
             </div>
-          ))}
-        </div>
-      )}
-
-      <div className="messages" ref={scroller}>
-        {messages.length === 0 && (
-          <div className="hint">
-            Ask about <b>{file ? file.path : 'your code'}</b>, or tell the assistant to make a change — it will read
-            and edit files itself, and each change shows up above as a diff you can <b>Keep</b> or <b>Revert</b>.
-          </div>
-        )}
-        {messages.map((m, i) => (
-          <MessageView key={i} m={m} />
-        ))}
-      </div>
-
-      <div className="composer">
-        <textarea
-          value={input}
-          placeholder={file ? `Ask or instruct about ${file.path}…  (Enter to send)` : 'Ask or instruct the assistant…'}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-        />
-        <button onClick={send} disabled={busy}>
-          {busy ? '…' : 'Send'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function MessageView({ m }: { m: ChatMessage }) {
-  return (
-    <div className={'msg ' + m.role}>
-      <div className="role">
-        {m.role === 'user' ? 'You' : 'Assistant'}
-        {m.streaming ? ' • working…' : ''}
-      </div>
-      {m.thinking ? (
-        <details className="thinking">
-          <summary>thinking</summary>
-          <pre>{m.thinking}</pre>
-        </details>
-      ) : null}
-
-      {m.role === 'user' ? (
-        <div className="content">
-          <pre>{m.content}</pre>
-        </div>
-      ) : (
-        <div className="parts">
-          {(m.parts ?? []).map((p, i) =>
-            p.kind === 'text' ? (
-              p.text.trim() ? (
-                <div className="content" key={i}>
-                  <pre>{p.text}</pre>
-                </div>
-              ) : null
-            ) : (
-              <div key={i} className={'tool-chip ' + p.status}>
-                <span className="tool-ico">{TOOL_ICON[p.name] ?? '🔧'}</span>
-                <span className="tool-label">{toolLabel(p.name, p.input, p.summary)}</span>
-                <span className="tool-status">{p.status === 'running' ? '…' : p.status === 'error' ? '✕' : '✓'}</span>
+            {auth.hasAuth && (
+              <div className="chat-suggestions">
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} className="chat-suggestion" onClick={() => onSend(s)}>
+                    {s}
+                  </button>
+                ))}
               </div>
-            )
-          )}
-          {(m.parts ?? []).length === 0 && m.streaming && <div className="content"><pre>…</pre></div>}
-        </div>
-      )}
+            )}
+          </div>
+        ) : (
+          messages.map((m, i) => <ChatMessageView key={i} m={m} />)
+        )}
+      </div>
+
+      {permissionMode !== 'plan' && <ChatChanges />}
+
+      <ChatComposer
+        attachments={attachments}
+        onAddFiles={addFiles}
+        onRemove={removeImage}
+        onSend={onSend}
+        onStop={stop}
+        busy={busy}
+        disabled={!auth.hasAuth}
+        placeholder={file ? `Ask or instruct about ${file.path.split('/').pop()}…` : 'Ask or instruct Claude…'}
+      />
+
+      {dragging > 0 && <div className="chat-dropzone">Drop image to attach</div>}
     </div>
   );
 }

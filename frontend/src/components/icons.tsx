@@ -164,6 +164,12 @@ export const IconStop = (p: P) => (
   </Svg>
 );
 
+export const IconPaperclip = (p: P) => (
+  <Svg {...p}>
+    <path d="M21 11.5l-8.5 8.5a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.6 1.6 0 0 1-2.3-2.3l7.8-7.8" />
+  </Svg>
+);
+
 export const IconWarning = (p: P) => (
   <Svg {...p}>
     <path d="M12 4 3 19h18z" />

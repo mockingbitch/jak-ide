@@ -15,6 +15,7 @@ export interface ChatMessage {
   parts?: MessagePart[]; // assistant turns store ordered text/tool parts
   thinking?: string;
   streaming?: boolean;
+  images?: { previewUrl: string; name: string }[]; // attachment thumbnails echoed on a user turn
 }
 
 /** Server-sent events streamed from POST /api/ai/chat. */
