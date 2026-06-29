@@ -64,8 +64,12 @@ Ràng buộc số 1: **app luôn hoạt động bình thường ở mọi commit
     created), client disconnect → kill child. Live-verified end-to-end: prompt text→done; và Read→Edit→file_change
     (before/after đúng)→done, file thực sự đổi trên đĩa.
   - **none ✅** xử lý native (event error + done).
-  - **apikey/oauth 🟡 PROXIED**: vẫn forward sang Node (engine direct-API `reqwest`+rustls + vòng lặp tool chưa
-    port — phần nặng nhất, KHÔNG test được ở đây vì máy không có API key). Cần làm trước khi xoá Node hoàn toàn.
+  - **apikey/oauth 🟡 PORTED, OPT-IN**: engine direct-API native `core/src/ai/direct.rs` (`reqwest`+rustls,
+    SSE Messages API, vòng lặp tool 5 tool list_dir/read_file/apply_edit/write_file/run_command, context block,
+    auth header apikey `x-api-key` / oauth `Bearer`+`anthropic-beta`). SSE state-machine + tool dispatch có
+    **unit test** (40 cargo). Dispatch: `JAKIDE_NATIVE_AI=1` → native; mặc định vẫn **proxy Node** (đường đã
+    verify) vì **không test được round-trip thật ở đây (thiếu API key)**. Cần verify bằng key thật trước khi
+    đổi mặc định + xoá Node.
 - **8. Retire Node** — gỡ `.fallback()` proxy; Electron spawn **chỉ** Rust; xóa `backend/`, node-pty,
   `desktop/app/server.cjs` + `build-backend.mjs`; sửa `desktop/package.json` scripts + README/PLAN.
   Kết quả: **một process Rust duy nhất**, không còn Node runtime.

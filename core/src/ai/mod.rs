@@ -1,11 +1,14 @@
 //! AI feature: `POST /api/ai/chat` (SSE). Dispatches by auth method:
 //!   - claude-code → native engine driving the `claude` CLI (claude_code.rs)
 //!   - none        → a native "not connected" error event
-//!   - apikey/oauth → reverse-proxied to Node (direct-API agent not yet ported)
+//!   - apikey/oauth → native direct-API engine (direct.rs) when JAKIDE_NATIVE_AI=1,
+//!     else reverse-proxied to Node (the verified default until the native engine
+//!     is tested against a real API key).
 //! The SSE event contract matches the Node `aiService` (text/thinking/tool_use/
 //! tool_result/file_change/done/error).
 
 mod claude_code;
+mod direct;
 
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -37,7 +40,6 @@ pub fn router() -> Router<Arc<AppState>> {
 #[serde(rename_all = "camelCase")]
 pub struct AiContext {
     pub file_path: Option<String>,
-    #[allow(dead_code)] // used by the direct-API engine (not yet ported)
     pub file_content: Option<String>,
     pub selection: Option<Selection>,
 }
@@ -68,13 +70,15 @@ struct ChatBody {
 
 async fn chat(State(st): State<Arc<AppState>>, req: Request) -> Response {
     let method = resolve_method().await;
+    let native_ai = std::env::var("JAKIDE_NATIVE_AI").map(|v| v == "1").unwrap_or(false);
 
-    // Direct-API agent (apikey/oauth) is still served by Node — forward as-is.
-    if method == "apikey" || method == "oauth" {
+    // Direct-API agent (apikey/oauth): native engine when opted in, else Node (the
+    // verified default — the native path can't be tested without a real API key).
+    if (method == "apikey" || method == "oauth") && !native_ai {
         return proxy::handler(State(st), req).await;
     }
 
-    // claude-code / none are handled natively. Parse the body now.
+    // claude-code / none / native apikey|oauth are handled here. Parse the body now.
     let bytes = match axum::body::to_bytes(req.into_parts().1, MAX_BODY).await {
         Ok(b) => b,
         Err(_) => return (StatusCode::PAYLOAD_TOO_LARGE, "request body too large").into_response(),
@@ -92,10 +96,16 @@ async fn chat(State(st): State<Arc<AppState>>, req: Request) -> Response {
     let ctx = body.context.unwrap_or_default();
 
     let (tx, rx) = mpsc::channel::<Event>(64);
+    let root = st.root();
     if method == "claude-code" {
-        let root = st.root();
         tokio::spawn(async move {
             claude_code::stream(messages, ctx, root, tx).await;
+        });
+    } else if method == "apikey" || method == "oauth" {
+        // native direct-API engine (reached only when JAKIDE_NATIVE_AI=1)
+        let model = st.model.clone();
+        tokio::spawn(async move {
+            direct::stream(messages, ctx, root, model, tx).await;
         });
     } else {
         // none → emit the "not connected" guidance, then done.
