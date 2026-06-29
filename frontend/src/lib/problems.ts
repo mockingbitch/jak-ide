@@ -36,6 +36,45 @@ const ESLINT_ROW = /^\s+(\d+):(\d+)\s+(error|warning)\s+(.+?)(?:\s{2,}[\w$/@-]+)
 
 const normFile = (f: string): string => f.replace(/\\/g, '/').replace(/^\.\//, '');
 
+// ---- Monaco markers (live LSP diagnostics) as Problems ----
+
+/** The bits of a Monaco IMarker we use (resource uri + position + severity). */
+export interface MarkerLike {
+  resource: { path: string };
+  startLineNumber: number;
+  startColumn: number;
+  severity: number; // Monaco MarkerSeverity: Error=8, Warning=4, Info=2, Hint=1
+  message: string;
+}
+
+const markerSeverityName = (s: number): Severity => (s >= 8 ? 'error' : s >= 4 ? 'warning' : 'info');
+
+export function markerToProblem(m: MarkerLike): Problem {
+  return {
+    file: m.resource.path.replace(/^\/+/, ''),
+    line: m.startLineNumber,
+    col: m.startColumn,
+    severity: markerSeverityName(m.severity),
+    message: m.message,
+  };
+}
+
+/** Merge problem sources (LSP markers + parsed run output), de-duplicating. */
+export function mergeProblems(...lists: ReadonlyArray<readonly Problem[]>): Problem[] {
+  const seen = new Set<string>();
+  const out: Problem[] = [];
+  for (const list of lists) {
+    for (const p of list) {
+      const key = `${p.file}:${p.line}:${p.col}:${p.severity}:${p.message}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(p);
+      }
+    }
+  }
+  return out;
+}
+
 function nextNonEmpty(lines: string[], idx: number): string | null {
   for (let j = idx + 1; j < lines.length; j++) {
     if (lines[j].trim()) return lines[j];

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseProblems } from './problems';
+import { parseProblems, markerToProblem, mergeProblems } from './problems';
 
 describe('parseProblems', () => {
   it('parses tsc diagnostics', () => {
@@ -67,5 +67,25 @@ describe('parseProblems', () => {
   it('does not treat a version banner as an ESLint file header', () => {
     // a bare dotted token NOT followed by an eslint row is ignored
     expect(parseProblems('eslint.config.js\nAll files pass\n')).toEqual([]);
+  });
+
+  it('maps a Monaco marker (LSP diagnostic) to a Problem', () => {
+    expect(
+      markerToProblem({ resource: { path: '/src/a.ts' }, startLineNumber: 5, startColumn: 3, severity: 8, message: 'boom' })
+    ).toEqual({ file: 'src/a.ts', line: 5, col: 3, severity: 'error', message: 'boom' });
+    expect(markerToProblem({ resource: { path: 'b.ts' }, startLineNumber: 1, startColumn: 1, severity: 4, message: 'w' }).severity).toBe('warning');
+    expect(markerToProblem({ resource: { path: 'b.ts' }, startLineNumber: 1, startColumn: 1, severity: 1, message: 'h' }).severity).toBe('info');
+  });
+
+  it('merges problem sources and de-dupes', () => {
+    const a = [{ file: 'a.ts', line: 1, col: 1, severity: 'error' as const, message: 'x' }];
+    const b = [
+      { file: 'a.ts', line: 1, col: 1, severity: 'error' as const, message: 'x' }, // dup of a
+      { file: 'a.ts', line: 2, col: 1, severity: 'warning' as const, message: 'y' },
+    ];
+    expect(mergeProblems(a, b)).toEqual([
+      { file: 'a.ts', line: 1, col: 1, severity: 'error', message: 'x' },
+      { file: 'a.ts', line: 2, col: 1, severity: 'warning', message: 'y' },
+    ]);
   });
 });

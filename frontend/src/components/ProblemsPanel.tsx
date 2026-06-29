@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useStore } from '../store';
-import { useProblems } from '../hooks/useProblems';
+import { useAllProblems } from '../hooks/useProblems';
 import { useOpenFileAt } from '../hooks/useOpenFileAt';
 import { FileIcon } from './FileIcon';
 import type { Problem, Severity } from '../lib/problems';
@@ -29,7 +29,7 @@ function groupByFile(problems: readonly Problem[]): FileProblems[] {
 }
 
 export function ProblemsPanel() {
-  const problems = useProblems();
+  const problems = useAllProblems();
   const projectRoot = useStore((s) => s.projectRoot);
   const openFileAt = useOpenFileAt();
   const groups = useMemo(() => groupByFile(problems), [problems]);
@@ -70,8 +70,9 @@ export function ProblemsPanel() {
 
       {problems.length === 0 ? (
         <div className="prob-empty">
-          No problems detected. Run a build or linter in the <b>Run</b> tab (e.g. <code>tsc --noEmit</code>,{' '}
-          <code>cargo check</code>, <code>eslint .</code>) and its diagnostics appear here.
+          No problems detected. Live diagnostics from the language server appear here as you edit, and you can
+          also run a build or linter in the <b>Run</b> tab (e.g. <code>tsc --noEmit</code>, <code>cargo check</code>,{' '}
+          <code>eslint .</code>) to surface its output here.
         </div>
       ) : (
         <div className="prob-list">

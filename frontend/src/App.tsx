@@ -11,7 +11,7 @@ import { ChatPanel } from './components/ChatPanel';
 import { TerminalPanel } from './components/TerminalPanel';
 import { RunPanel } from './components/RunPanel';
 import { ProblemsPanel } from './components/ProblemsPanel';
-import { useProblems } from './hooks/useProblems';
+import { useAllProblems } from './hooks/useProblems';
 import { Splitter } from './components/Splitter';
 import { StatusBar } from './components/StatusBar';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -51,7 +51,7 @@ export default function App() {
   const activeGroupId = useStore((s) => s.activeGroupId);
   const resizeGroup = useStore((s) => s.resizeGroup);
 
-  const problemCount = useProblems().length;
+  const problemCount = useAllProblems().length;
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [finderOpen, setFinderOpen] = useState(false);
