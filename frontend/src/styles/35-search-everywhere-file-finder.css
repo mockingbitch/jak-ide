@@ -90,3 +90,86 @@
   padding: 0 5px;
   margin-right: 4px;
 }
+
+/* ---- tabbed search modal (Files / Text) ---- */
+.finder-search {
+  /* Give the content-search tab room to show grouped results. */
+  height: 60vh;
+}
+.finder-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.finder-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-dim);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: -1px; /* overlap the container's bottom border */
+}
+.finder-tab:hover {
+  color: var(--fg);
+}
+.finder-tab.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+.finder-tab-kbd {
+  color: var(--fg-dim);
+  font-size: 10px;
+  font-weight: 500;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+
+/* Each tab's body fills the remaining modal height; the hidden tab keeps its state. */
+.finder-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.finder-panel.hidden {
+  display: none;
+}
+
+/* content-search tab: input + summary + scrollable results + footer */
+.finder-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.finder-content .finder-field {
+  /* reuse .find-field (relative wrapper for the inline option toggles) */
+  display: flex;
+  align-items: center;
+}
+.finder-content .finder-input {
+  padding-right: 92px; /* room for the Aa / W / .* toggles */
+}
+.finder-content .find-toggles {
+  top: 50%;
+  transform: translateY(-50%);
+}
+.finder-summary {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--fg);
+  padding: 6px 16px 2px;
+}
+.finder-content .find-results {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}

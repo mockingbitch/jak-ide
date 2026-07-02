@@ -5,6 +5,8 @@ import type { editor, IDisposable } from 'monaco-editor';
 import { useStore } from '../store';
 import { createLspClient, type LspClient } from '../lib/lsp/client';
 import { registerLspProviders } from '../lib/lsp/providers';
+import { setLspBridge } from '../lib/lsp/bridge';
+import { openFileAndReveal } from '../lib/openFileAt';
 import { clientLang, diagnosticToMarker, lspLanguageId, type LspDiagnostic } from '../lib/lsp/protocol';
 
 const CHANGE_DEBOUNCE = 300;
@@ -85,7 +87,38 @@ export function useLsp(): void {
       registerLspProviders(monaco, cfg.monaco, () => getClient(cfg.id), rootUri, lspUri, isTracked)
     );
 
+    // Cross-file navigation: when go-to-definition/implementation/references targets a
+    // resource that isn't the current model, open it as a tab and reveal the position.
+    const opener = monaco.editor.registerEditorOpener({
+      openCodeEditor(_source, resource, selectionOrPosition) {
+        const rel = resource.path.replace(/^\/+/, '');
+        if (!rel) return false;
+        let line: number | undefined;
+        let col = 1;
+        if (selectionOrPosition) {
+          if ('startLineNumber' in selectionOrPosition) {
+            line = selectionOrPosition.startLineNumber;
+            col = selectionOrPosition.startColumn;
+          } else {
+            line = selectionOrPosition.lineNumber;
+            col = selectionOrPosition.column;
+          }
+        }
+        openFileAndReveal(monaco, rel, line, col).catch(() => {});
+        return true;
+      },
+    });
+
+    // Let out-of-tree features (implementation gutter) issue LSP requests for a model.
+    setLspBridge((model, method, params) => {
+      const langId = clientLang(relPathOf(model));
+      if (!langId || !perModel.has(model.uri.toString())) return Promise.reject(new Error('untracked model'));
+      return getClient(langId).request(method, { textDocument: { uri: lspUri(model) }, ...params });
+    });
+
     return () => {
+      setLspBridge(null);
+      opener.dispose();
       createSub.dispose();
       providers.forEach((d) => d.dispose());
       for (const t of timers.values()) clearTimeout(t);

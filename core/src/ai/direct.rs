@@ -48,6 +48,14 @@ fn evt(v: Value) -> Event {
     Event::default().data(v.to_string())
 }
 
+/// Sum every token category that occupies the model's context window for the
+/// *next* turn — fresh input plus both cache buckets.
+fn context_input_tokens(usage: &Value) -> u64 {
+    usage.get("input_tokens").and_then(Value::as_u64).unwrap_or(0)
+        + usage.get("cache_creation_input_tokens").and_then(Value::as_u64).unwrap_or(0)
+        + usage.get("cache_read_input_tokens").and_then(Value::as_u64).unwrap_or(0)
+}
+
 // ---- SSE streaming state machine (unit-tested) ----
 
 #[derive(Default, Debug)]
@@ -216,13 +224,18 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, images: Vec
         let mut turn = Turn::default();
         let mut buf: Vec<u8> = Vec::new();
         let mut bytes = resp.bytes_stream();
+        // `message_start` carries the prompt's input/cache token counts once; each
+        // `message_delta` repeats only the (cumulative) output count, so the two are
+        // combined into one inputTokens+outputTokens usage event per delta.
+        let mut input_tokens: u64 = 0;
         'read: while let Some(chunk) = bytes.next().await {
             let Ok(chunk) = chunk else { break };
             buf.extend_from_slice(&chunk);
             let (events, rest) = drain_sse(&buf);
             buf = rest;
             for ev in events {
-                if ev.get("type").and_then(Value::as_str) == Some("message_stop") {
+                let kind = ev.get("type").and_then(Value::as_str);
+                if kind == Some("message_stop") {
                     break 'read;
                 }
                 for emit in apply_event(&mut turn, &ev) {
@@ -234,9 +247,12 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, images: Vec
                         return; // client disconnected
                     }
                 }
-                if ev.get("type").and_then(Value::as_str) == Some("message_delta") {
+                if kind == Some("message_start") {
+                    input_tokens = context_input_tokens(ev.pointer("/message/usage").unwrap_or(&Value::Null));
+                }
+                if kind == Some("message_delta") {
                     if let Some(ot) = ev.pointer("/usage/output_tokens").and_then(Value::as_u64) {
-                        let _ = tx.send(evt(json!({ "type": "usage", "outputTokens": ot }))).await;
+                        let _ = tx.send(evt(json!({ "type": "usage", "outputTokens": ot, "inputTokens": input_tokens }))).await;
                     }
                 }
             }

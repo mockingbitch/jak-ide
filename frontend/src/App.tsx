@@ -10,19 +10,22 @@ import { EditorGroupView } from './components/EditorGroupView';
 import { ChatPanel } from './components/ChatPanel';
 import { TerminalPanel } from './components/TerminalPanel';
 import { RunPanel } from './components/RunPanel';
+import { DockerPanel } from './components/DockerPanel';
+import { DbPanel } from './components/DbPanel';
 import { ProblemsPanel } from './components/ProblemsPanel';
 import { useAllProblems } from './hooks/useProblems';
 import { Splitter } from './components/Splitter';
 import { StatusBar } from './components/StatusBar';
 import { SettingsPanel } from './components/SettingsPanel';
-import { SearchEverywhere } from './components/SearchEverywhere';
+import { SearchModal, type SearchTab } from './components/SearchModal';
 import { GoToSymbol } from './components/GoToSymbol';
 import { ProjectMenu } from './components/ProjectMenu';
 import { GitPanel } from './components/GitPanel';
 import { MainMenu } from './components/MainMenu';
 import { BranchWidget } from './components/BranchWidget';
 import { FolderPicker } from './components/FolderPicker';
-import { IconProject, IconSearch, IconSettings, IconAI, IconTerminal, IconBranch, IconRun, IconWarning } from './components/icons';
+import { WindowControls } from './components/WindowControls';
+import { IconProject, IconSearch, IconSettings, IconAI, IconTerminal, IconBranch, IconRun, IconWarning, IconDocker, IconDatabase } from './components/icons';
 
 export default function App() {
   const layout = useStore((s) => s.layout);
@@ -54,8 +57,9 @@ export default function App() {
   const problemCount = useAllProblems().length;
 
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [finderOpen, setFinderOpen] = useState(false);
+  const [finder, setFinder] = useState<{ open: boolean; tab: SearchTab }>({ open: false, tab: 'files' });
   const [symbolOpen, setSymbolOpen] = useState(false);
+  const openFinder = (tab: SearchTab) => setFinder({ open: true, tab });
 
   useEditorChrome();
   useLsp();
@@ -103,18 +107,18 @@ export default function App() {
     };
   }, [bumpGitRefresh]);
 
-  // Global shortcut: Cmd/Ctrl+P opens Search Everywhere (quick file open).
-  // (Ctrl/Cmd+K is left to Monaco, which uses it as a chord prefix.)
+  // Global shortcuts: the search modal opens on the Files tab (Cmd/Ctrl+P) or the
+  // Text/content tab (Cmd/Ctrl+Shift+F). Either shortcut also flips the tab while the
+  // modal is already open. (Ctrl/Cmd+K is left to Monaco, which uses it as a chord prefix.)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'p') {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
-        setFinderOpen(true);
+        openFinder('files');
       } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
-        const st = useStore.getState();
-        if (!(st.layout.leftOpen && st.layout.leftView === 'search')) st.selectLeftView('search');
+        openFinder('content');
       } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
         e.preventDefault();
         setSymbolOpen(true);
@@ -131,7 +135,7 @@ export default function App() {
         <div className="tb-left">
           <MainMenu
             onSettings={() => setSettingsOpen(true)}
-            onSearch={() => setFinderOpen(true)}
+            onSearch={() => openFinder('files')}
             onOpenFolder={openFolderPicker}
           />
           <ProjectMenu />
@@ -144,12 +148,13 @@ export default function App() {
           <button className="tb-icon-btn" onClick={toggleRight} title="AI Assistant" aria-pressed={layout.rightOpen}>
             <IconAI size={17} />
           </button>
-          <button className="tb-icon-btn" onClick={() => setFinderOpen(true)} title="Search Everywhere (Ctrl P)">
+          <button className="tb-icon-btn" onClick={() => openFinder('files')} title="Search Everywhere (Ctrl P)">
             <IconSearch size={17} />
           </button>
           <button className="tb-icon-btn" onClick={() => setSettingsOpen(true)} title="Settings">
             <IconSettings size={17} />
           </button>
+          <WindowControls />
         </div>
       </div>
 
@@ -164,7 +169,7 @@ export default function App() {
             <IconProject size={18} />
           </ActivityButton>
           <ActivityButton
-            label="Find in Files (Ctrl Shift F)"
+            label="Find in Files (docked) — Ctrl Shift F for the search popup"
             active={layout.leftOpen && layout.leftView === 'search'}
             onClick={() => selectLeftView('search')}
           >
@@ -233,6 +238,16 @@ export default function App() {
                     <RunPanel />
                   </div>
                 )}
+                {layout.bottomView === 'docker' && (
+                  <div className="bottom-view">
+                    <DockerPanel />
+                  </div>
+                )}
+                {layout.bottomView === 'database' && (
+                  <div className="bottom-view">
+                    <DbPanel />
+                  </div>
+                )}
                 {layout.bottomView === 'problems' && (
                   <div className="bottom-view">
                     <ProblemsPanel />
@@ -260,6 +275,22 @@ export default function App() {
               Run
             </button>
             <button
+              className={'bottom-btn' + (layout.bottomOpen && layout.bottomView === 'docker' ? ' active' : '')}
+              onClick={() => selectBottomView('docker')}
+              title="Docker"
+            >
+              <IconDocker size={14} />
+              Docker
+            </button>
+            <button
+              className={'bottom-btn' + (layout.bottomOpen && layout.bottomView === 'database' ? ' active' : '')}
+              onClick={() => selectBottomView('database')}
+              title="Database"
+            >
+              <IconDatabase size={14} />
+              Database
+            </button>
+            <button
               className={'bottom-btn' + (layout.bottomOpen && layout.bottomView === 'problems' ? ' active' : '')}
               onClick={() => selectBottomView('problems')}
               title="Problems"
@@ -270,18 +301,18 @@ export default function App() {
             </button>
           </div>
         </div>
-
-        <div className="activity-bar activity-right">
-          <ActivityButton label="AI Assistant" active={layout.rightOpen} onClick={toggleRight}>
-            <IconAI size={18} />
-          </ActivityButton>
-        </div>
       </div>
 
       <StatusBar />
 
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
-      {finderOpen && <SearchEverywhere onClose={() => setFinderOpen(false)} />}
+      {finder.open && (
+        <SearchModal
+          tab={finder.tab}
+          onTab={(tab) => setFinder((f) => ({ ...f, tab }))}
+          onClose={() => setFinder((f) => ({ ...f, open: false }))}
+        />
+      )}
       {symbolOpen && <GoToSymbol onClose={() => setSymbolOpen(false)} />}
       {folderPickerOpen && (
         <FolderPicker

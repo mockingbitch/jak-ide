@@ -3,6 +3,8 @@
 
 mod ai;
 mod auth;
+mod db;
+mod docker;
 mod error;
 mod files;
 mod fonts;
@@ -42,6 +44,8 @@ async fn main() {
         .merge(search::router())
         .merge(symbols::router())
         .merge(git::router())
+        .merge(docker::router())
+        .merge(db::router())
         .merge(terminal::router())
         .merge(run::router())
         .merge(runner::router())

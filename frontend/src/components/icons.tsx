@@ -177,3 +177,76 @@ export const IconWarning = (p: P) => (
     <path d="M12 16.5v.5" />
   </Svg>
 );
+
+export const IconHistory = (p: P) => (
+  <Svg {...p}>
+    <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3 8" />
+    <path d="M3 4v4h4" />
+    <path d="M12 7.5V12l3 2" />
+  </Svg>
+);
+
+export const IconAnnotate = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 5v14" />
+    <path d="M8 6.5h12M8 12h12M8 17.5h8" />
+  </Svg>
+);
+
+export const IconWinMinimize = (p: P) => (
+  <Svg {...p}>
+    <path d="M5 19h14" />
+  </Svg>
+);
+
+export const IconWinMaximize = (p: P) => (
+  <Svg {...p}>
+    <rect x="5" y="5" width="14" height="14" rx="1" />
+  </Svg>
+);
+
+export const IconWinRestore = (p: P) => (
+  <Svg {...p}>
+    <rect x="8" y="4" width="12" height="12" rx="1" />
+    <path d="M4 8v11a1 1 0 0 0 1 1h11" />
+  </Svg>
+);
+
+export const IconDocker = (p: P) => (
+  <Svg {...p}>
+    <path d="M2.5 13c0-1.4 1.2-2.5 3-2.5h13c1.8 0 3 .9 3 2.2 0 3-3.3 5.3-9.3 5.3S2.5 15.5 2.5 13Z" />
+    <rect x="5.5" y="8" width="3" height="3" />
+    <rect x="9.5" y="8" width="3" height="3" />
+    <rect x="9.5" y="4" width="3" height="3" />
+    <rect x="13.5" y="8" width="3" height="3" />
+  </Svg>
+);
+
+export const IconDatabase = (p: P) => (
+  <Svg {...p}>
+    <ellipse cx="12" cy="5.5" rx="7.5" ry="3" />
+    <path d="M4.5 5.5v13c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3v-13" />
+    <path d="M4.5 12c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3" />
+  </Svg>
+);
+
+export const IconLogs = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 6h16M4 12h16M4 18h10" />
+  </Svg>
+);
+
+export const IconInfo = (p: P) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5.5" />
+    <path d="M12 7.5h.01" />
+  </Svg>
+);
+
+export const IconAt = (p: P) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="3.5" />
+    <path d="M15.5 12v1.5a2.5 2.5 0 0 0 5 0V12a8.5 8.5 0 1 0-3.4 6.8" />
+  </Svg>
+);

@@ -61,14 +61,16 @@ struct ChatMsg {
     content: String,
 }
 
-/// Native Claude options surfaced in the UI (model + permission mode).
+/// Native Claude options surfaced in the UI (model + permission mode + effort).
 #[derive(Deserialize, Default, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ChatOptions {
     /// Model alias/full name (e.g. "opus", "sonnet"); empty/"default" = the engine default.
     pub model: String,
-    /// Claude Code permission mode: default | acceptEdits | plan | bypassPermissions.
+    /// Claude Code permission mode: default | acceptEdits | auto | plan | bypassPermissions.
     pub permission_mode: String,
+    /// Claude Code reasoning effort: low | medium | high | xhigh | max; empty/"default" = the CLI default.
+    pub effort: String,
 }
 
 /// An attached image for the current turn (base64, no data: prefix).

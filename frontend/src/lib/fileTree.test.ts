@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { TreeNode } from '../types';
-import { flattenTree, topLevelDirs } from './fileTree';
+import { flattenTree, topLevelDirs, ancestorDirs } from './fileTree';
 
 const dir = (name: string, path: string, children: TreeNode[]): TreeNode => ({ name, path, type: 'dir', children });
 const file = (name: string, path: string): TreeNode => ({ name, path, type: 'file' });
@@ -37,5 +37,19 @@ describe('flattenTree', () => {
 describe('topLevelDirs', () => {
   it('returns only first-level directories', () => {
     expect([...topLevelDirs(root)]).toEqual(['src']);
+  });
+});
+
+describe('ancestorDirs', () => {
+  it('returns every ancestor dir top-down', () => {
+    expect(ancestorDirs('src/lib/b.ts')).toEqual(['src', 'src/lib']);
+  });
+
+  it('returns empty for a top-level file', () => {
+    expect(ancestorDirs('README.md')).toEqual([]);
+  });
+
+  it('ignores empty segments from stray slashes', () => {
+    expect(ancestorDirs('/src//lib/b.ts')).toEqual(['src', 'src/lib']);
   });
 });

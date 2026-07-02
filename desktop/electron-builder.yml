@@ -1,6 +1,7 @@
 appId: com.jakide.app
 productName: JakIDE
-copyright: JakIDE
+copyright: Copyright © 2026 PhongTran
+icon: assets/icons
 
 # asar disabled keeps express.static + the bundled backend reading from the
 # normal filesystem — simplest reliable setup for the MVP.
@@ -14,6 +15,7 @@ files:
   - preload.js
   - prompt.html
   - "app/**/*"
+  - "assets/**/*"
   - package.json
 
 linux:
@@ -21,6 +23,7 @@ linux:
     - AppImage
     - deb
   category: Development
-  maintainer: "JakIDE <noreply@example.com>"
+  maintainer: "PhongTran <jarvis.phongtran@gmail.com>"
+  synopsis: "AI-first IDE"
   executableName: jakide
   artifactName: "${productName}-${version}.${ext}"

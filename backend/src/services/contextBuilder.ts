@@ -4,7 +4,11 @@ export interface AiContext {
   filePath?: string;
   fileContent?: string;
   selection?: { text: string; startLine: number; endLine: number };
+  /** Extra files the user @-mentioned as context. */
+  files?: { path: string; content: string }[];
 }
+
+const MAX_REF_FILE = 20000;
 
 function renderTree(node: TreeNode, depth: number, maxDepth: number, prefix = ''): string {
   if (depth > maxDepth) return '';
@@ -69,6 +73,13 @@ export async function buildContextBlock(ctx: AiContext): Promise<string> {
     parts.push(
       `## Selected code (lines ${ctx.selection.startLine}-${ctx.selection.endLine})\n\`\`\`\n${ctx.selection.text}\n\`\`\``
     );
+  }
+
+  // @-mentioned files (skip the active file to avoid duplication).
+  for (const f of ctx.files ?? []) {
+    if (!f?.path || f.path === ctx.filePath || typeof f.content !== 'string') continue;
+    const body = f.content.length > MAX_REF_FILE ? f.content.slice(0, MAX_REF_FILE) + '\n... (truncated)' : f.content;
+    parts.push(`## Referenced file: \`${f.path}\`\n\`\`\`\n${body}\n\`\`\``);
   }
 
   return parts.join('\n\n');

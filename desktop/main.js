@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, safeStorage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const net = require('node:net');
@@ -150,7 +150,9 @@ async function createWindow() {
     width: 1440,
     height: 900,
     show: false,
+    frame: false,
     title: 'JakIDE',
+    icon: path.join(__dirname, 'assets', 'icons', '512x512.png'),
     backgroundColor: '#1e1e1e',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -159,7 +161,19 @@ async function createWindow() {
     },
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.once('ready-to-show', () => {
+    // On Wayland, maximize() is a no-op until the surface is mapped —
+    // show() first, then maximize.
+    mainWindow.show();
+    mainWindow.maximize();
+  });
+  const sendWinState = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('jakide:win-state', { maximized: mainWindow.isMaximized() });
+    }
+  };
+  mainWindow.on('maximize', sendWinState);
+  mainWindow.on('unmaximize', sendWinState);
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -273,6 +287,7 @@ function promptText({ title, label, value = '', password = false }) {
       modal: true,
       show: false,
       title: title || 'Input',
+      icon: path.join(__dirname, 'assets', 'icons', '512x512.png'),
       resizable: false,
       minimizable: false,
       maximizable: false,
@@ -331,6 +346,39 @@ ipcMain.handle('jakide:set-api-key', async () => {
 ipcMain.handle('jakide:toggle-devtools', () => {
   if (mainWindow) mainWindow.webContents.toggleDevTools();
 });
+
+// Custom titlebar window controls (the OS frame is disabled — see createWindow).
+ipcMain.handle('jakide:win-is-maximized', () => !!mainWindow && mainWindow.isMaximized());
+ipcMain.handle('jakide:win-minimize', () => mainWindow?.minimize());
+ipcMain.handle('jakide:win-toggle-maximize', () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMaximized()) mainWindow.unmaximize();
+  else mainWindow.maximize();
+});
+ipcMain.handle('jakide:win-close', () => mainWindow?.close());
+
+// Secret encryption for saved DB/SSH connection passwords (Electron safeStorage,
+// tied to the OS user account — never written to disk in plaintext). The Rust
+// core never sees ciphertext or holds a decryption key; it only ever receives a
+// plaintext secret transiently, per request, once the renderer has decrypted it.
+ipcMain.handle('jakide:secret-encrypt', (_e, plain) => {
+  if (!safeStorage.isEncryptionAvailable()) {
+    return { ok: false, error: 'OS-level encryption is not available on this system.' };
+  }
+  try {
+    return { ok: true, data: safeStorage.encryptString(String(plain)).toString('base64') };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+});
+ipcMain.handle('jakide:secret-decrypt', (_e, encoded) => {
+  try {
+    return { ok: true, data: safeStorage.decryptString(Buffer.from(String(encoded), 'base64')) };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+});
+
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });

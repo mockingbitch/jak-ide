@@ -8,6 +8,13 @@ interface JakideBridge {
   readonly toggleDevTools?: () => void;
   readonly promptSubmit?: (value: string) => void;
   readonly promptCancel?: () => void;
+  readonly winIsMaximized?: () => Promise<boolean>;
+  readonly winMinimize?: () => Promise<void>;
+  readonly winToggleMaximize?: () => Promise<void>;
+  readonly winClose?: () => Promise<void>;
+  readonly onWinStateChange?: (cb: (state: { maximized: boolean }) => void) => () => void;
+  readonly encryptSecret?: (plain: string) => Promise<{ ok: boolean; data?: string; error?: string }>;
+  readonly decryptSecret?: (encoded: string) => Promise<{ ok: boolean; data?: string; error?: string }>;
 }
 
 interface Window {

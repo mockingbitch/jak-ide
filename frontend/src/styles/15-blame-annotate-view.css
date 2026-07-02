@@ -1,53 +1,64 @@
-/* ---- blame / annotate view ---- */
-.blame-view {
-  flex: 1;
-  overflow: auto;
-  min-height: 0;
-  background: var(--editor-bg);
-  font-family: var(--code-font, ui-monospace, monospace);
-  font-size: 12.5px;
+/* ---- inline git annotation (PhpStorm "Annotate with Git Blame") ---- */
+/* Injected text rendered before each line: a per-line author/date gutter column.
+   Age heat-coloured (b0 oldest → b4 newest); uncommitted lines stand out in amber. */
+.blame-inj {
+  color: var(--fg-dim);
+  border-right: 1px solid var(--border);
+  padding-right: 8px;
+  margin-right: 8px;
+  opacity: 0.9;
 }
-.blame-line {
-  display: flex;
-  align-items: baseline;
+.blame-b0 {
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
 }
-.blame-line:hover {
+.blame-b1 {
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+.blame-b2 {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.blame-b3 {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.blame-b4 {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: var(--fg);
+}
+.blame-uncommitted {
+  font-style: italic;
+  color: var(--accent-fg, var(--accent));
+  background: color-mix(in srgb, #e0a83a 22%, transparent);
+}
+
+/* GitLens-style current-line blame: a faint trailing note on the caret's line. */
+.blame-eol {
+  color: var(--fg-dim);
+  opacity: 0.7;
+  font-style: italic;
+}
+
+/* ---- editor toolbar: git actions (Annotate / History) ---- */
+.editor-git-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+.ed-git-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+.ed-git-btn:hover {
+  color: var(--fg);
   background: var(--hover);
 }
-.blame-ann {
-  flex: 0 0 auto;
-  width: 210px;
-  display: inline-flex;
-  gap: 8px;
-  align-items: baseline;
-  padding: 1px 8px;
-  color: var(--fg-dim);
-  font-family: var(--ui-font);
-  font-size: 11px;
-  border-right: 1px solid var(--border);
-  white-space: nowrap;
-  overflow: hidden;
-}
-.blame-hash {
-  color: var(--accent);
-  flex: 0 0 auto;
-}
-.blame-author {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.blame-date {
-  flex: 0 0 auto;
-}
-.blame-num {
-  flex: 0 0 auto;
-  width: 46px;
-  text-align: right;
-  padding-right: 12px;
-  color: var(--fg-dim);
-}
-.blame-code {
-  white-space: pre;
-  color: var(--editor-fg);
+.ed-git-btn.active {
+  color: var(--accent-fg);
+  background: var(--accent-soft);
+  border-color: var(--accent);
 }

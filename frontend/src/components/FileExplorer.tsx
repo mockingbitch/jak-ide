@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TreeNode, GitFileEntry } from '../types';
 import { useStore, activeFileTab } from '../store';
-import { getTree, getFile, gitLog, gitBlame, gitDiffApi } from '../api';
-import { flattenTree, topLevelDirs } from '../lib/fileTree';
+import { useGitViewStore } from '../lib/gitViewStore';
+import { getTree, getFile, gitLog, gitDiffApi } from '../api';
+import { flattenTree, topLevelDirs, ancestorDirs } from '../lib/fileTree';
 import { useFileOps } from '../hooks/useFileOps';
 import { FileIcon } from './FileIcon';
 import { IconPlus, IconRefresh, IconChevronRight, IconChevronDown, IconFolderOpen } from './icons';
@@ -68,13 +69,14 @@ export function FileExplorer() {
   const gitFiles = useStore((s) => s.gitFiles);
   const repo = useStore((s) => s.git.repo);
   const openGitDiff = useStore((s) => s.openGitDiff);
-  const openGitBlame = useStore((s) => s.openGitBlame);
   const openGitHistory = useStore((s) => s.openGitHistory);
+  const setAnnotate = useGitViewStore((s) => s.setAnnotate);
 
   const [menu, setMenu] = useState<CtxMenu | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const seeded = useRef(false);
+  const revealedFor = useRef<string | null>(null); // last activePath we auto-scrolled to
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -126,6 +128,34 @@ export function FileExplorer() {
 
   const rows = useMemo(() => flattenTree(tree, expanded), [tree, expanded]);
 
+  // Auto-reveal the active file: expand its ancestor dirs so the row exists…
+  useEffect(() => {
+    if (!activePath) return;
+    const anc = ancestorDirs(activePath);
+    if (anc.length === 0) return;
+    setExpanded((prev) => {
+      let next: Set<string> | null = null;
+      for (const d of anc)
+        if (!prev.has(d)) (next ??= new Set(prev)).add(d);
+      return next ?? prev; // no-op set skips the re-render when already expanded
+    });
+  }, [activePath]);
+
+  // …then scroll it into view once the tree reflects the expansion. Keyed on the
+  // active path (via revealedFor) so a manual scroll or unrelated expand/collapse
+  // doesn't yank the view back to the active file.
+  useEffect(() => {
+    if (!activePath || revealedFor.current === activePath) return;
+    const idx = rows.findIndex((r) => r.node.path === activePath);
+    if (idx === -1) return; // ancestors not expanded yet — wait for rows to update
+    revealedFor.current = activePath;
+    const el = scrollRef.current;
+    if (!el) return;
+    const top = idx * ROW_H;
+    if (top < el.scrollTop) el.scrollTop = top; // above the viewport → align to top
+    else if (top + ROW_H > el.scrollTop + el.clientHeight) el.scrollTop = top + ROW_H - el.clientHeight;
+  }, [activePath, rows]);
+
   const toggle = (path: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -134,12 +164,14 @@ export function FileExplorer() {
       return next;
     });
 
-  const openFile = async (path: string) => {
+  const openFile = async (path: string): Promise<boolean> => {
     try {
       const f = await getFile(path);
       openTab({ path: f.path, content: f.content, dirty: false });
+      return true;
     } catch (e) {
       alert((e as Error).message);
+      return false;
     }
   };
 
@@ -150,12 +182,9 @@ export function FileExplorer() {
       alert((e as Error).message);
     }
   };
-  const showBlame = async (p: string) => {
-    try {
-      openGitBlame({ path: p, lines: await gitBlame(p) });
-    } catch (e) {
-      alert('Blame failed: ' + (e as Error).message);
-    }
+  // Open the file and turn on the inline blame gutter (PhpStorm "Annotate").
+  const annotate = async (p: string) => {
+    if (await openFile(p)) setAnnotate(p, true);
   };
   const showDiff = async (p: string) => {
     try {
@@ -277,7 +306,7 @@ export function FileExplorer() {
                 <div className="ctx-sep" />
                 <button onClick={() => act(() => showDiff(menu.node.path))}>Show Diff</button>
                 <button onClick={() => act(() => showHistory(menu.node.path))}>Show History</button>
-                <button onClick={() => act(() => showBlame(menu.node.path))}>Annotate / Blame</button>
+                <button onClick={() => act(() => annotate(menu.node.path))}>Annotate with Git Blame</button>
               </>
             )}
             <div className="ctx-sep" />

@@ -1,4 +1,5 @@
 import { ChatMarkdown } from './ChatMarkdown';
+import { ChatChangeCard } from './ChatChangeCard';
 import type { ChatMessage, MessagePart } from '../../types';
 
 const fmtTokens = (n: number) => (n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n));
@@ -37,23 +38,12 @@ function ToolChip({ p }: { p: Extract<MessagePart, { kind: 'tool' }> }) {
 }
 
 export function ChatMessageView({ m }: { m: ChatMessage }) {
-  const isUser = m.role === 'user';
-  return (
-    <div className={'chat-msg ' + m.role}>
-      <div className="chat-msg-head">
-        <span className={'chat-avatar ' + m.role}>{isUser ? 'U' : '✦'}</span>
-        <span className="chat-role">{isUser ? 'You' : 'Claude'}</span>
-      </div>
-
-      {m.thinking ? (
-        <details className="chat-thinking">
-          <summary>Thinking</summary>
-          <pre>{m.thinking}</pre>
-        </details>
-      ) : null}
-
-      {isUser ? (
-        <>
+  // Cursor-style: the user turn is a rounded card; the assistant turn is clean,
+  // full-width flowing text with no avatar/role chrome.
+  if (m.role === 'user') {
+    return (
+      <div className="chat-msg user">
+        <div className="chat-user-card">
           {m.content ? <div className="chat-user-text">{m.content}</div> : null}
           {m.images?.length ? (
             <div className="chat-msg-images">
@@ -62,19 +52,27 @@ export function ChatMessageView({ m }: { m: ChatMessage }) {
               ))}
             </div>
           ) : null}
-        </>
-      ) : (
-        <div className="chat-parts">
-          {(m.parts ?? []).map((p, i) =>
-            p.kind === 'text' ? (
-              p.text.trim() ? <ChatMarkdown key={i} text={p.text} /> : null
-            ) : (
-              <ToolChip key={i} p={p} />
-            )
-          )}
-          {!m.streaming && m.durationMs != null ? <div className="chat-msg-meta">{turnMeta(m)}</div> : null}
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="chat-msg assistant">
+      {m.thinking ? (
+        <details className="chat-thinking">
+          <summary>Thinking</summary>
+          <pre>{m.thinking}</pre>
+        </details>
+      ) : null}
+      <div className="chat-parts">
+        {(m.parts ?? []).map((p, i) => {
+          if (p.kind === 'text') return p.text.trim() ? <ChatMarkdown key={i} text={p.text} /> : null;
+          if (p.kind === 'change') return <ChatChangeCard key={i} path={p.path} created={p.created} />;
+          return <ToolChip key={i} p={p} />;
+        })}
+        {!m.streaming && m.durationMs != null ? <div className="chat-msg-meta">{turnMeta(m)}</div> : null}
+      </div>
     </div>
   );
 }

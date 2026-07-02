@@ -7,6 +7,13 @@ import type {
   GitCommit,
   GitFileDiff,
   BlameLine,
+  DockerStatus,
+  DockerContainer,
+  DockerImage,
+  DockerContainerDetail,
+  DbConnInfo,
+  DbColumn,
+  DbQueryResult,
 } from './types';
 
 async function jsonOrThrow(r: Response) {
@@ -23,6 +30,8 @@ const POST = (url: string, body: unknown) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+
+const DELETE = (url: string) => fetch(url, { method: 'DELETE' });
 
 export interface Health {
   ok: boolean;
@@ -228,3 +237,21 @@ export const getAuthStatus = (): Promise<AuthStatus> => fetch('/api/auth/status'
 export const authLogin = (): Promise<{ ok: boolean; error?: string }> =>
   POST('/api/auth/login', {}).then((r) => r.json());
 export const authLogout = (): Promise<{ ok: boolean }> => POST('/api/auth/logout', {}).then(jsonOrThrow);
+
+// ---- Docker tool window ----
+export const dockerStatus = (): Promise<DockerStatus> => fetch('/api/docker/status').then(jsonOrThrow);
+export const dockerContainers = (): Promise<DockerContainer[]> => fetch('/api/docker/containers').then(jsonOrThrow);
+export const dockerImages = (): Promise<DockerImage[]> => fetch('/api/docker/images').then(jsonOrThrow);
+export const dockerStartContainer = (id: string) => POST(`/api/docker/containers/${id}/start`, {}).then(jsonOrThrow);
+export const dockerStopContainer = (id: string) => POST(`/api/docker/containers/${id}/stop`, {}).then(jsonOrThrow);
+export const dockerRestartContainer = (id: string) => POST(`/api/docker/containers/${id}/restart`, {}).then(jsonOrThrow);
+export const dockerRemoveContainer = (id: string) => DELETE(`/api/docker/containers/${id}`).then(jsonOrThrow);
+export const dockerRemoveImage = (id: string) => DELETE(`/api/docker/images/${id}`).then(jsonOrThrow);
+export const dockerInspectContainer = (id: string): Promise<DockerContainerDetail> =>
+  fetch(`/api/docker/containers/${id}/inspect`).then(jsonOrThrow);
+
+// ---- Database tool window ----
+export const dbTest = (c: DbConnInfo): Promise<{ ok: boolean }> => POST('/api/db/test', c).then(jsonOrThrow);
+export const dbTables = (c: DbConnInfo): Promise<string[]> => POST('/api/db/tables', c).then(jsonOrThrow);
+export const dbColumns = (c: DbConnInfo, table: string): Promise<DbColumn[]> => POST('/api/db/columns', { ...c, table }).then(jsonOrThrow);
+export const dbQuery = (c: DbConnInfo, sql: string): Promise<DbQueryResult> => POST('/api/db/query', { ...c, sql }).then(jsonOrThrow);

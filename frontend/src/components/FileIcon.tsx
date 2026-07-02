@@ -1,10 +1,9 @@
 import type { FC, SVGProps } from 'react';
+import { folderTypeIcons } from '../lib/folderTypeIcons';
 
 // Real, multi-colour file-type icons (VS Code "vscode-icons" set), tree-shaken
 // by unplugin-icons — only the icons imported here end up in the bundle.
 import IcDefault from '~icons/vscode-icons/default-file';
-import IcFolder from '~icons/vscode-icons/default-folder';
-import IcFolderOpen from '~icons/vscode-icons/default-folder-opened';
 import IcTs from '~icons/vscode-icons/file-type-typescript';
 import IcTsDef from '~icons/vscode-icons/file-type-typescriptdef';
 import IcTsx from '~icons/vscode-icons/file-type-reactts';
@@ -41,21 +40,6 @@ import IcDocker from '~icons/vscode-icons/file-type-docker';
 import IcNpm from '~icons/vscode-icons/file-type-npm';
 import IcGit from '~icons/vscode-icons/file-type-git';
 import IcConfig from '~icons/vscode-icons/file-type-light-config';
-// folder type icons (closed + opened)
-import IcFSrc from '~icons/vscode-icons/folder-type-src';
-import IcFSrcO from '~icons/vscode-icons/folder-type-src-opened';
-import IcFNode from '~icons/vscode-icons/folder-type-node';
-import IcFNodeO from '~icons/vscode-icons/folder-type-node-opened';
-import IcFTest from '~icons/vscode-icons/folder-type-test';
-import IcFTestO from '~icons/vscode-icons/folder-type-test-opened';
-import IcFPublic from '~icons/vscode-icons/folder-type-public';
-import IcFPublicO from '~icons/vscode-icons/folder-type-public-opened';
-import IcFDist from '~icons/vscode-icons/folder-type-dist';
-import IcFDistO from '~icons/vscode-icons/folder-type-dist-opened';
-import IcFGit from '~icons/vscode-icons/folder-type-git';
-import IcFGitO from '~icons/vscode-icons/folder-type-git-opened';
-import IcFGithub from '~icons/vscode-icons/folder-type-github';
-import IcFGithubO from '~icons/vscode-icons/folder-type-github-opened';
 
 type IconCmp = FC<SVGProps<SVGSVGElement>>;
 
@@ -84,23 +68,11 @@ function fileIcon(name: string): IconCmp {
   return EXT_MAP[ext] ?? IcDefault;
 }
 
-function folderIcons(name: string): { closed: IconCmp; open: IconCmp } {
-  const n = name.toLowerCase();
-  if (n === 'node_modules' || n === 'vendor') return { closed: IcFNode, open: IcFNodeO };
-  if (n === 'src' || n === 'app' || n === 'lib' || n === 'source') return { closed: IcFSrc, open: IcFSrcO };
-  if (/(^|[-_])tests?$/.test(n) || n === '__tests__' || n === 'spec' || n === 'specs' || n === 'e2e')
-    return { closed: IcFTest, open: IcFTestO };
-  if (n === 'public' || n === 'static' || n === 'assets') return { closed: IcFPublic, open: IcFPublicO };
-  if (n === 'dist' || n === 'build' || n === 'out') return { closed: IcFDist, open: IcFDistO };
-  if (n === '.github') return { closed: IcFGithub, open: IcFGithubO };
-  if (n === '.git') return { closed: IcFGit, open: IcFGitO };
-  return { closed: IcFolder, open: IcFolderOpen };
-}
-
-/** Modern VS-Code-style icon: real coloured file-type glyphs + open/closed folders. */
+/** Modern VS-Code-style icon: real coloured file-type glyphs + open/closed folders.
+ *  Folder categorisation (coloured per-type icons) lives in ../lib/folderTypeIcons. */
 export function FileIcon({ name, dir, open }: { name: string; dir?: boolean; open?: boolean }) {
   if (dir) {
-    const f = folderIcons(name);
+    const f = folderTypeIcons(name);
     const Cmp = open ? f.open : f.closed;
     return <Cmp className="ficon" />;
   }

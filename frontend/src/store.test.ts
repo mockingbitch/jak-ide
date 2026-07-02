@@ -104,6 +104,48 @@ describe('closeTab', () => {
   });
 });
 
+describe('closeMany (Close Others / to the Right / All)', () => {
+  const open3 = () => {
+    openFile('a.ts');
+    openFile('b.ts');
+    openFile('c.ts');
+  };
+
+  it('Close Others keeps only the target and makes it active', () => {
+    open3();
+    st().setActiveTab('group-1', 'a.ts');
+    st().closeMany(['a.ts', 'c.ts'], 'group-1'); // keep b.ts (close the others)
+    const g = activeGroup(st());
+    expect(g.tabs.map((t) => t.id)).toEqual(['b.ts']);
+    expect(g.activeTabId).toBe('b.ts'); // active was closed → promoted the survivor
+  });
+
+  it('Close to the Right drops later tabs and keeps the active if it survives', () => {
+    open3();
+    st().setActiveTab('group-1', 'a.ts');
+    st().closeMany(['c.ts'], 'group-1'); // right of b.ts
+    const g = activeGroup(st());
+    expect(g.tabs.map((t) => t.id)).toEqual(['a.ts', 'b.ts']);
+    expect(g.activeTabId).toBe('a.ts'); // untouched — it wasn't closed
+  });
+
+  it('Close All empties the group', () => {
+    open3();
+    st().closeMany(['a.ts', 'b.ts', 'c.ts'], 'group-1');
+    const g = activeGroup(st());
+    expect(g.tabs).toHaveLength(0);
+    expect(g.activeTabId).toBeNull();
+  });
+
+  it('Close All on a non-final group collapses it', () => {
+    openFile('a.ts');
+    st().splitGroup(); // group-2 holds a.ts, active
+    st().closeMany(['a.ts'], 'group-2');
+    expect(st().groups).toHaveLength(1);
+    expect(st().activeGroupId).toBe('group-1');
+  });
+});
+
 describe('reconciliation (U8)', () => {
   it('renameTab rewrites path/id/title and the active id', () => {
     openFile('old.ts', 'X');

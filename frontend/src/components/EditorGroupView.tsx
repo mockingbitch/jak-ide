@@ -2,7 +2,6 @@ import { useStore } from '../store';
 import { TabBar } from './TabBar';
 import { FileEditorTab } from './tabs/FileEditorTab';
 import { GitDiffTab } from './tabs/GitDiffTab';
-import { BlameTab } from './tabs/BlameTab';
 import { HistoryTab } from './tabs/HistoryTab';
 import { MergeEditor } from './MergeEditor';
 import type { EditorGroup, EditorTab } from '../types';
@@ -13,8 +12,6 @@ function renderBody(tab: EditorTab, groupId: string) {
       return <FileEditorTab tab={tab} groupId={groupId} />;
     case 'diff':
       return <GitDiffTab tab={tab} groupId={groupId} />;
-    case 'blame':
-      return <BlameTab tab={tab} groupId={groupId} />;
     case 'history':
       return <HistoryTab tab={tab} groupId={groupId} />;
     case 'merge':

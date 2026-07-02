@@ -2,8 +2,10 @@
   "name": "jakide-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "JakIDE desktop app (Electron) for Ubuntu / Linux",
-  "author": "JakIDE",
+  "description": "JakIDE — AI-first IDE",
+  "author": "PhongTran <jarvis.phongtran@gmail.com>",
+  "homepage": "https://github.com/mockingbitch/jakide",
+  "license": "MIT",
   "main": "main.js",
   "scripts": {
     "dev": "concurrently -k -n core,backend,frontend,electron -c yellow,blue,green,magenta \"node scripts/dev-core.mjs\" \"PORT=8788 npm --prefix ../backend run dev\" \"npm --prefix ../frontend run dev\" \"npm run dev:electron\"",

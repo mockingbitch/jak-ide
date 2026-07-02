@@ -1,12 +1,4 @@
 /* ---- markdown view ---- */
-.editor-toolbar {
-  display: flex;
-  align-items: center;
-  padding: 4px 10px;
-  background: var(--editor-bg);
-  border-bottom: 1px solid var(--border);
-  flex: 0 0 auto;
-}
 .view-toggle {
   display: inline-flex;
   border: 1px solid var(--border);

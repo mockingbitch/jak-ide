@@ -37,7 +37,7 @@ export function WorkingIndicator({ onStop }: { onStop: () => void }) {
     return () => clearInterval(id);
   }, []);
   // Esc-to-interrupt is handled by ChatPanel (scoped to the panel) so it can't
-  // steal Escape from open modals (FolderPicker / SearchEverywhere / GoToSymbol).
+  // steal Escape from open modals (FolderPicker / SearchModal / GoToSymbol).
 
   const m = messages[messages.length - 1];
   const elapsed = Math.max(0, Math.floor((Date.now() - (m?.startedAt ?? Date.now())) / 1000));

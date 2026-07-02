@@ -103,25 +103,42 @@ export function registerLspProviders(
     },
   });
 
+  // Map LSP Location(s)/LocationLink(s) → Monaco locations, keeping only same-project
+  // targets. Monaco navigates to these via the editor opener registered in useLsp.
+  const toLocations = (res: LspLocation | LspLocation[] | null): languages.Location[] => {
+    if (!res) return [];
+    const locs = Array.isArray(res) ? res : [res];
+    const prefix = rootUri + '/';
+    const out: languages.Location[] = [];
+    for (const l of locs) {
+      const uri = l.uri ?? l.targetUri;
+      const range = l.range ?? l.targetSelectionRange ?? l.targetRange;
+      if (!uri || !range || !uri.startsWith(prefix)) continue;
+      out.push({ uri: monaco.Uri.parse(uri.slice(prefix.length)), range: toMonacoRange(range) });
+    }
+    return out;
+  };
+
   const definition = monaco.languages.registerDefinitionProvider(languages, {
     async provideDefinition(model: editor.ITextModel, position: Position) {
       if (!isTracked(model)) return null;
       const res = await getClient()
         .request<LspLocation | LspLocation[] | null>('textDocument/definition', docPos(model, position))
         .catch(() => null);
-      if (!res) return null;
-      const locs = Array.isArray(res) ? res : [res];
-      const prefix = rootUri + '/';
-      const defs: languages.Location[] = [];
-      for (const l of locs) {
-        const uri = l.uri ?? l.targetUri;
-        const range = l.range ?? l.targetSelectionRange ?? l.targetRange;
-        if (!uri || !range || !uri.startsWith(prefix)) continue; // same-project targets only
-        defs.push({ uri: monaco.Uri.parse(uri.slice(prefix.length)), range: toMonacoRange(range) });
-      }
-      return defs;
+      return toLocations(res);
     },
   });
 
-  return [completion, hover, definition];
+  // Go to Implementations (Ctrl/Cmd+click on an interface → implementing classes).
+  const implementation = monaco.languages.registerImplementationProvider(languages, {
+    async provideImplementation(model: editor.ITextModel, position: Position) {
+      if (!isTracked(model)) return null;
+      const res = await getClient()
+        .request<LspLocation | LspLocation[] | null>('textDocument/implementation', docPos(model, position))
+        .catch(() => null);
+      return toLocations(res);
+    },
+  });
+
+  return [completion, hover, definition, implementation];
 }

@@ -1,42 +1,16 @@
 import { useStore } from '../../store';
-import { getFile, saveFile, deleteFileApi } from '../../api';
+import { useChangeActions } from '../../hooks/useChangeActions';
 
-/** Pending AI file edits with per-file Keep / Revert (and bulk actions). */
+/** Bulk summary of pending AI file edits (per-file cards render inline in the answer;
+ *  this bar adds Keep all / Revert all for batch handling). */
 export function ChatChanges() {
   const changes = useStore((s) => s.changes);
-  const openTab = useStore((s) => s.openTab);
-  const refreshTab = useStore((s) => s.refreshTab);
-  const closeTab = useStore((s) => s.closeTab);
-  const clearChange = useStore((s) => s.clearChange);
   const clearAllChanges = useStore((s) => s.clearAllChanges);
+  const { revert } = useChangeActions();
 
   const paths = Object.keys(changes);
   if (paths.length === 0) return null;
 
-  const open = async (p: string) => {
-    try {
-      const f = await getFile(p);
-      openTab({ path: f.path, content: f.content, dirty: false });
-    } catch (e) {
-      alert((e as Error).message);
-    }
-  };
-  const revert = async (p: string) => {
-    const entry = changes[p];
-    if (!entry) return;
-    try {
-      if (entry.created) {
-        await deleteFileApi(p);
-        closeTab(p);
-      } else {
-        await saveFile(p, entry.before);
-        refreshTab(p, entry.before);
-      }
-      clearChange(p);
-    } catch (e) {
-      alert('Revert failed: ' + (e as Error).message);
-    }
-  };
   const revertAll = async () => {
     for (const p of Object.keys(changes)) await revert(p);
   };
@@ -45,7 +19,7 @@ export function ChatChanges() {
     <div className="chat-changes">
       <div className="chat-changes-head">
         <span>
-          Changes <b>({paths.length})</b>
+          {paths.length} pending change{paths.length === 1 ? '' : 's'}
         </span>
         <span className="chat-changes-actions">
           <button className="chat-link" onClick={clearAllChanges}>
@@ -56,21 +30,6 @@ export function ChatChanges() {
           </button>
         </span>
       </div>
-      {paths.map((p) => (
-        <div key={p} className="chat-change-row">
-          <span className="chat-change-path" title={p} onClick={() => open(p)}>
-            {p}
-          </span>
-          <span className="chat-change-btns">
-            <button className="chat-link" onClick={() => clearChange(p)}>
-              Keep
-            </button>
-            <button className="chat-link danger" onClick={() => revert(p)}>
-              Revert
-            </button>
-          </span>
-        </div>
-      ))}
     </div>
   );
 }

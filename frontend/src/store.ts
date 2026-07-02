@@ -11,13 +11,13 @@ import type {
   RecentProject,
   GitFileDiff,
   GitFileEntry,
-  BlameLine,
   GitCommit,
   EditorTab,
   EditorGroup,
   FileTab,
 } from './types';
 import { basename } from './lib/lang';
+import { newGroup, mapGroup, closeOne, closeManyIn, collapseEmptyGroups } from './lib/editorGroups';
 import { DEFAULT_THEME, type ThemeSetting } from './theme';
 
 export interface Layout {
@@ -28,7 +28,7 @@ export interface Layout {
   rightW: number;
   bottomH: number;
   leftView: 'project' | 'git' | 'search';
-  bottomView: 'terminal' | 'run' | 'problems';
+  bottomView: 'terminal' | 'run' | 'problems' | 'docker' | 'database';
 }
 
 const DEFAULT_LAYOUT: Layout = {
@@ -72,17 +72,7 @@ const persisted = loadPersisted();
 const GROUP_MIN_SIZE = 0.2;
 const RESIZE_K = 0.004; // px → flex-grow weight (relative units; ratio is what matters)
 
-const newGroup = (seq: number, tabs: EditorTab[] = [], activeTabId: string | null = null): EditorGroup => ({
-  id: `group-${seq}`,
-  tabs,
-  activeTabId,
-  size: 1,
-});
-
 const activeGroupOf = (s: State): EditorGroup => s.groups.find((g) => g.id === s.activeGroupId) ?? s.groups[0];
-
-const mapGroup = (groups: EditorGroup[], id: string, fn: (g: EditorGroup) => EditorGroup): EditorGroup[] =>
-  groups.map((g) => (g.id === id ? fn(g) : g));
 
 // Open (or refresh + activate) an aux tab in the active group.
 function openAux(s: State, tab: EditorTab): Pick<State, 'groups'> {
@@ -104,15 +94,6 @@ function updateFileTabs(s: State, path: string, fn: (t: FileTab) => FileTab): Pi
       tabs: g.tabs.map((t) => (t.kind === 'file' && t.path === path ? fn(t) : t)),
     })),
   };
-}
-
-function closeOne(g: EditorGroup, tabId: string): EditorGroup {
-  const idx = g.tabs.findIndex((t) => t.id === tabId);
-  if (idx === -1) return g;
-  const tabs = g.tabs.filter((t) => t.id !== tabId);
-  let activeTabId = g.activeTabId;
-  if (g.activeTabId === tabId) activeTabId = (tabs[idx] ?? tabs[idx - 1] ?? null)?.id ?? null;
-  return { ...g, tabs, activeTabId };
 }
 
 interface State {
@@ -139,6 +120,9 @@ interface State {
     claudeLoggedIn?: boolean;
   };
   authBusy: boolean; // a sign-in is in progress (shared across all entry points)
+  // Context window used by the current chat, derived from the latest turn's
+  // reported prompt+output tokens; null until the first usage event arrives.
+  contextUsage: { used: number; window: number } | null;
   shells: Shell[];
   terminalShell: string | null;
   fonts: string[];
@@ -158,6 +142,7 @@ interface State {
   // ---- editor tabs & groups ----
   openTab: (file: OpenFile) => void;
   closeTab: (tabId: string, groupId?: string) => void;
+  closeMany: (tabIds: string[], groupId: string) => void; // Close Others / to the Right / All
   setActiveTab: (groupId: string, tabId: string) => void;
   setActiveGroup: (groupId: string) => void;
   splitGroup: () => void;
@@ -183,6 +168,8 @@ interface State {
   switchProject: (dir: string) => Promise<void>;
   setAuth: (a: State['auth']) => void;
   setAuthBusy: (b: boolean) => void;
+  setContextUsage: (used: number, window?: number) => void;
+  clearContextUsage: () => void;
 
   setShells: (shells: Shell[], def: string) => void;
   setTerminalShell: (path: string) => void;
@@ -202,7 +189,6 @@ interface State {
   setGit: (g: State['git']) => void;
   setGitFiles: (files: GitFileEntry[]) => void;
   openGitDiff: (d: GitFileDiff) => void;
-  openGitBlame: (b: { path: string; lines: BlameLine[] }) => void;
   openGitHistory: (h: { path: string; commits: GitCommit[] }) => void;
   openMergeView: (m: { path: string; base: string; ours: string; theirs: string; working: string }) => void;
   setMergeResult: (tabId: string, result: string) => void;
@@ -212,7 +198,7 @@ interface State {
   toggleRight: () => void;
   toggleBottom: () => void;
   selectLeftView: (view: 'project' | 'git' | 'search') => void;
-  selectBottomView: (view: 'terminal' | 'run' | 'problems') => void;
+  selectBottomView: (view: 'terminal' | 'run' | 'problems' | 'docker' | 'database') => void;
   resizeLeft: (delta: number) => void;
   resizeRight: (delta: number) => void;
   resizeBottom: (delta: number) => void;
@@ -245,6 +231,7 @@ export const useStore = create<State>((set, get) => ({
   gitRefreshSeq: 0,
   auth: { method: 'none', hasAuth: false, antInstalled: false },
   authBusy: false,
+  contextUsage: null,
   shells: [],
   terminalShell: persisted.terminalShell ?? null,
   fonts: [],
@@ -282,18 +269,16 @@ export const useStore = create<State>((set, get) => ({
 
   closeTab: (tabId, groupId) =>
     set((s) => {
-      let groups = s.groups.map((g) => (groupId == null || g.id === groupId ? closeOne(g, tabId) : g));
-      let activeGroupId = s.activeGroupId;
-      if (groups.length > 1) {
-        const kept = groups.filter((g) => g.tabs.length > 0);
-        if (kept.length === 0) {
-          groups = [{ ...groups[0], tabs: [], activeTabId: null }];
-        } else if (kept.length < groups.length) {
-          groups = kept;
-        }
-        if (!groups.some((g) => g.id === activeGroupId)) activeGroupId = groups[groups.length - 1].id;
-      }
-      return { groups, activeGroupId };
+      const groups = s.groups.map((g) => (groupId == null || g.id === groupId ? closeOne(g, tabId) : g));
+      return collapseEmptyGroups(groups, s.activeGroupId);
+    }),
+
+  // Bulk close within one group (Close Others / Close to the Right / Close All).
+  closeMany: (tabIds, groupId) =>
+    set((s) => {
+      const kill = new Set(tabIds);
+      const groups = s.groups.map((g) => (g.id === groupId ? closeManyIn(g, kill) : g));
+      return collapseEmptyGroups(groups, s.activeGroupId);
     }),
 
   setActiveTab: (groupId, tabId) =>
@@ -399,8 +384,6 @@ export const useStore = create<State>((set, get) => ({
             return { ...t, id: np, path: np, title: bn };
           case 'diff':
             return { ...t, id: `diff:${np}:${t.diff.mode}`, path: np, title: `Diff: ${bn}` };
-          case 'blame':
-            return { ...t, id: `blame:${np}`, path: np, title: `Blame: ${bn}` };
           case 'history':
             return { ...t, id: `history:${np}`, path: np, title: `History: ${bn}` };
           case 'merge':
@@ -470,14 +453,13 @@ export const useStore = create<State>((set, get) => ({
       activeTerminalId: null,
       gitFiles: [],
       git: { repo: false, branch: null, ahead: 0, behind: 0, changed: 0, detached: false },
+      contextUsage: null,
     })),
 
   setGit: (git) => set({ git }),
   setGitFiles: (gitFiles) => set({ gitFiles }),
   openGitDiff: (d) =>
     set((s) => openAux(s, { id: `diff:${d.path}:${d.mode}`, kind: 'diff', path: d.path, title: `Diff: ${basename(d.path)}`, diff: d })),
-  openGitBlame: (b) =>
-    set((s) => openAux(s, { id: `blame:${b.path}`, kind: 'blame', path: b.path, title: `Blame: ${basename(b.path)}`, lines: b.lines })),
   openGitHistory: (h) =>
     set((s) => openAux(s, { id: `history:${h.path}`, kind: 'history', path: h.path, title: `History: ${basename(h.path)}`, commits: h.commits })),
   openMergeView: (m) =>
@@ -501,6 +483,8 @@ export const useStore = create<State>((set, get) => ({
   bumpGitRefresh: () => set((s) => ({ gitRefreshSeq: s.gitRefreshSeq + 1 })),
   setAuth: (auth) => set({ auth }),
   setAuthBusy: (authBusy) => set({ authBusy }),
+  setContextUsage: (used, window) => set((s) => ({ contextUsage: { used, window: window ?? s.contextUsage?.window ?? 200_000 } })),
+  clearContextUsage: () => set({ contextUsage: null }),
 
   setShells: (shells, def) => set((s) => ({ shells, terminalShell: s.terminalShell ?? def })),
   setTerminalShell: (path) => set({ terminalShell: path }),

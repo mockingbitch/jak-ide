@@ -18,7 +18,8 @@
 .ide-main.no-bottom .ide-panes {
   padding-bottom: var(--gap);
 }
-/* Each tool window / the editor is a floating, rounded, bordered card. */
+/* Each tool window / the editor is a plain floating, rounded card — flat face,
+   no border of its own. */
 .tw {
   background: var(--bg-2);
   display: flex;
@@ -26,13 +27,18 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid transparent; /* cards float on the frame; gap + bg do the separating */
   border-radius: var(--radius);
 }
 .tw-left,
 .tw-right,
 .tw-bottom {
   flex: 0 0 auto;
+}
+/* The left sidebar reads as one continuous surface with the titlebar above it —
+   same flat color, same corner-accent glow (see .titlebar) — instead of the
+   generic .tw card color every other tool window uses. */
+.tw-left {
+  background: var(--corner-accent-gradient), var(--bg);
 }
 .tw-bottom {
   margin: 0 var(--gap) var(--gap); /* left / right / bottom gap; top gap = the splitter */
@@ -43,9 +49,13 @@
   min-width: 0;
   min-height: 0;
   background: var(--editor-bg);
-  border: 1px solid transparent;
   border-radius: var(--radius);
-  /* no overflow:hidden — Monaco autocomplete/find popups must not be clipped */
+  /* Safe to clip now that every Monaco instance sets fixedOverflowWidgets
+     (lib/monacoSetup.ts) — autocomplete/hover/find widgets render fixed to
+     <body> instead of inside this box, so they're never cut off here. Without
+     this, only the tabbar's own top corners looked rounded; the bottom edge
+     (wherever the editor content itself ends) was always square. */
+  overflow: hidden;
 }
 .ide-editor > .editor-group:only-child {
   border-radius: var(--radius);

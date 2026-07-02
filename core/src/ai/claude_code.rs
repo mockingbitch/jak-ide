@@ -127,6 +127,15 @@ fn ev(v: Value) -> Event {
     Event::default().data(v.to_string())
 }
 
+/// Sum every token category that occupies the model's context window for the
+/// *next* turn — fresh input plus both cache buckets (a cache hit still counts
+/// toward context, it's just billed cheaper than a fresh read).
+fn context_input_tokens(usage: &Value) -> u64 {
+    usage.get("input_tokens").and_then(Value::as_u64).unwrap_or(0)
+        + usage.get("cache_creation_input_tokens").and_then(Value::as_u64).unwrap_or(0)
+        + usage.get("cache_read_input_tokens").and_then(Value::as_u64).unwrap_or(0)
+}
+
 /// Run a turn through `claude -p`, streaming events to `tx`. Returns when the CLI
 /// finishes (or the client disconnects, in which case the child is killed).
 pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, images: Vec<Image>, options: ChatOptions, root: PathBuf, tx: Sender<Event>) {
@@ -149,6 +158,10 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, images: Vec
     if !options.model.is_empty() && options.model != "default" {
         args.push("--model".into());
         args.push(options.model.clone());
+    }
+    if !options.effort.is_empty() && options.effort != "default" {
+        args.push("--effort".into());
+        args.push(options.effort.clone());
     }
     args.push("--allowedTools".into());
     for t in ALLOWED_TOOLS {
@@ -242,8 +255,11 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, images: Vec
                         }
                     }
                 }
-                if let Some(ot) = obj.pointer("/message/usage/output_tokens").and_then(Value::as_u64) {
-                    let _ = tx.send(ev(json!({ "type": "usage", "outputTokens": ot }))).await;
+                if let Some(usage) = obj.pointer("/message/usage") {
+                    if let Some(ot) = usage.get("output_tokens").and_then(Value::as_u64) {
+                        let input = context_input_tokens(usage);
+                        let _ = tx.send(ev(json!({ "type": "usage", "outputTokens": ot, "inputTokens": input }))).await;
+                    }
                 }
             }
             "user" => {
@@ -269,8 +285,23 @@ pub async fn stream(messages: Vec<(String, String)>, ctx: AiContext, images: Vec
             }
             "result" => {
                 saw_result = true;
-                if let Some(ot) = obj.pointer("/usage/output_tokens").and_then(Value::as_u64) {
-                    let _ = tx.send(ev(json!({ "type": "usage", "outputTokens": ot }))).await;
+                if let Some(usage) = obj.get("usage") {
+                    let ot = usage.get("output_tokens").and_then(Value::as_u64).unwrap_or(0);
+                    let input = context_input_tokens(usage);
+                    // `modelUsage` keys by whichever model actually answered — there's
+                    // normally exactly one entry, and it carries the real context-window
+                    // size for that model (no separate lookup table needed).
+                    let context_window = obj
+                        .get("modelUsage")
+                        .and_then(Value::as_object)
+                        .and_then(|m| m.values().next())
+                        .and_then(|v| v.get("contextWindow"))
+                        .and_then(Value::as_u64);
+                    let mut payload = json!({ "type": "usage", "outputTokens": ot, "inputTokens": input });
+                    if let Some(cw) = context_window {
+                        payload["contextWindow"] = json!(cw);
+                    }
+                    let _ = tx.send(ev(payload)).await;
                 }
                 let is_error = obj.get("is_error").and_then(Value::as_bool).unwrap_or(false);
                 let subtype = obj.get("subtype").and_then(Value::as_str);

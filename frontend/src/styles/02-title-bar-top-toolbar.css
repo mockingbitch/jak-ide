@@ -6,8 +6,9 @@
   align-items: center;
   gap: 8px;
   padding: 0 8px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
+  /* Flat like the left sidebar below it (.tw-left) — same base color, plus a
+     shared corner-accent glow — so the two read as one continuous surface. */
+  background: var(--corner-accent-gradient), var(--bg);
   -webkit-app-region: drag; /* draggable window chrome in Electron */
 }
 .titlebar button,
@@ -147,4 +148,21 @@
   .search-kbd {
     display: none;
   }
+}
+
+.win-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid var(--border);
+  -webkit-app-region: no-drag;
+}
+.win-ctl-btn:hover {
+  background: var(--hover);
+}
+.win-ctl-close:hover {
+  background: #e81123;
+  color: #fff;
 }

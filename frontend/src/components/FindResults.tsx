@@ -1,6 +1,6 @@
 import { FileIcon } from './FileIcon';
 import { IconChevronRight, IconChevronDown, IconClose } from './icons';
-import type { FileGroup } from '../lib/findGroup';
+import { hitKey, type FileGroup } from '../lib/findGroup';
 import type { TextHit } from '../api';
 
 const baseOf = (p: string) => p.split('/').pop() ?? p;
@@ -10,11 +10,11 @@ const dirOf = (p: string) => {
 };
 
 /** A single result line with the matched span highlighted. */
-function HitLine({ hit, onOpen }: { hit: TextHit; onOpen: () => void }) {
+function HitLine({ hit, active, onOpen }: { hit: TextHit; active?: boolean; onOpen: () => void }) {
   const { text, matchStart, matchEnd } = hit;
   const hasSpan = matchEnd > matchStart && matchEnd <= text.length;
   return (
-    <div className="find-hit" onClick={onOpen} title={`Line ${hit.line}`}>
+    <div className={'find-hit' + (active ? ' active' : '')} onClick={onOpen} title={`Line ${hit.line}`}>
       <span className="find-hit-line">{hit.line}</span>
       <span className="find-hit-text">
         {hasSpan ? (
@@ -37,12 +37,15 @@ export function FindResults({
   onToggle,
   onDismiss,
   onOpen,
+  activeKey,
 }: {
   groups: readonly FileGroup[];
   collapsed: ReadonlySet<string>;
   onToggle: (path: string) => void;
   onDismiss: (path: string) => void;
   onOpen: (path: string, line: number, col: number) => void;
+  /** hitKey() of the keyboard-focused hit (modal only); undefined in the docked panel. */
+  activeKey?: string;
 }) {
   return (
     <div className="find-results">
@@ -69,7 +72,12 @@ export function FindResults({
             </div>
             {!isCollapsed &&
               g.hits.map((h, i) => (
-                <HitLine key={`${h.line}:${h.col}:${i}`} hit={h} onOpen={() => onOpen(g.path, h.line, h.col)} />
+                <HitLine
+                  key={`${h.line}:${h.col}:${i}`}
+                  hit={h}
+                  active={activeKey === hitKey(g.path, i)}
+                  onOpen={() => onOpen(g.path, h.line, h.col)}
+                />
               ))}
           </div>
         );

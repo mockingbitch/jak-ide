@@ -1,7 +1,7 @@
 import { DiffEditor } from '@monaco-editor/react';
 import { useStore } from '../../store';
 import { langFor, basename } from '../../lib/lang';
-import { beforeMountTheme } from '../../lib/monacoSetup';
+import { beforeMountTheme, LINE_NUMBERS_MIN_CHARS, OVERFLOW_WIDGETS_OPTIONS } from '../../lib/monacoSetup';
 import { IconClose } from '../icons';
 import type { DiffTab } from '../../types';
 
@@ -31,12 +31,14 @@ export function GitDiffTab({ tab, groupId }: { tab: DiffTab; groupId: string }) 
           beforeMount={beforeMountTheme}
           onMount={(_e, m) => m.editor.setTheme('jakide')}
           options={{
+            ...OVERFLOW_WIDGETS_OPTIONS,
             readOnly: true,
             renderSideBySide: true,
             automaticLayout: true,
             minimap: { enabled: false },
             fontSize: theme.fontSize,
             fontFamily: theme.fontFamily,
+            lineNumbersMinChars: LINE_NUMBERS_MIN_CHARS,
           }}
         />
       </div>

@@ -10,9 +10,20 @@ function safeCloseWs(ws: WebSocket | null) {
   else if (ws.readyState === WebSocket.OPEN) ws.close();
 }
 
-/** One terminal session: its own xterm + PTY WebSocket, bound to a fixed shell.
+/** One terminal session: its own xterm + PTY WebSocket. Defaults to a local
+ *  shell session (`shellPath` required); passing `wsPath` instead points the
+ *  same xterm/PTY wiring at a different backend session (e.g. `docker exec`)
+ *  that doesn't take a `shell` field in its start payload.
  *  Stays mounted when not visible (hidden via CSS) so its session keeps running. */
-export function TerminalInstance({ shellPath, visible }: { shellPath: string; visible: boolean }) {
+export function TerminalInstance({
+  shellPath,
+  wsPath = '/ws/terminal',
+  visible,
+}: {
+  shellPath?: string;
+  wsPath?: string;
+  visible: boolean;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -50,7 +61,7 @@ export function TerminalInstance({ shellPath, visible }: { shellPath: string; vi
     });
 
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${location.host}/ws/terminal`);
+    const ws = new WebSocket(`${proto}://${location.host}${wsPath}`);
     wsRef.current = ws;
     ws.onopen = () => {
       try {
@@ -58,7 +69,9 @@ export function TerminalInstance({ shellPath, visible }: { shellPath: string; vi
       } catch {
         /* ignore */
       }
-      ws.send(JSON.stringify({ type: 'start', shell: shellPath, cols: term.cols, rows: term.rows }));
+      const start: Record<string, unknown> = { type: 'start', cols: term.cols, rows: term.rows };
+      if (shellPath) start.shell = shellPath;
+      ws.send(JSON.stringify(start));
     };
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data);

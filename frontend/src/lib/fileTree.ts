@@ -28,3 +28,19 @@ export function topLevelDirs(root: TreeNode | null): Set<string> {
   for (const c of root?.children ?? []) if (c.type === 'dir') s.add(c.path);
   return s;
 }
+
+/** Every ancestor directory path of a node path, from the top level down.
+ *  e.g. 'src/lib/foo.ts' → ['src', 'src/lib']. Pure — drives auto-reveal of the
+ *  active file: expanding these makes the file visible in the tree. */
+export function ancestorDirs(path: string): string[] {
+  const parts = path.split('/');
+  parts.pop(); // drop the leaf (file or dir) name — we only want its ancestors
+  const out: string[] = [];
+  let acc = '';
+  for (const p of parts) {
+    if (!p) continue; // guard against leading '/' or '//' producing empty segments
+    acc = acc ? acc + '/' + p : p;
+    out.push(acc);
+  }
+  return out;
+}

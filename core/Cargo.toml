@@ -32,6 +32,12 @@ regex = "1"
 notify = "6"
 # Kill a run's whole process group (the streaming runner, U14/U15)
 libc = "0.2"
+# Database tool window: typed per-engine pools (not the `Any` driver — it can't
+# decode common types like Postgres NUMERIC/NAME, which broke real queries in
+# testing). chrono/rust_decimal cover timestamps and money/decimal columns.
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "mysql", "postgres", "sqlite", "chrono", "rust_decimal"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+rust_decimal = "1"
 
 [profile.release]
 opt-level = "z"

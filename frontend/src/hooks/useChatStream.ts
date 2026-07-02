@@ -1,17 +1,19 @@
 import { useRef, useState } from 'react';
 import { useStore, activeFileTab } from '../store';
 import { useAiStore } from '../lib/aiStore';
+import { getFile } from '../api';
 import type { ChatMessage, ChatStreamEvent, MessagePart } from '../types';
 import type { AttachedImage } from '../lib/imageAttach';
 
 /** Owns the AI chat send + SSE stream (no UI). Sends the native Claude options
- *  (model, permissionMode) and any attached images with the current turn, and
- *  exposes stop() to abort an in-flight generation. */
+ *  (model, permissionMode, effort) and any attached images with the current turn,
+ *  and exposes stop() to abort an in-flight generation. */
 export function useChatStream() {
   const setMessages = useStore((s) => s.setMessages);
   const recordChange = useStore((s) => s.recordChange);
   const applyAiChange = useStore((s) => s.applyAiChange);
   const bumpGitRefresh = useStore((s) => s.bumpGitRefresh);
+  const setContextUsage = useStore((s) => s.setContextUsage);
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -59,11 +61,22 @@ export function useChatStream() {
       case 'file_change':
         recordChange(evt.path, evt.before, evt.created);
         applyAiChange(evt.path, evt.after);
+        // Surface the edit inline in the answer (one card per file per turn).
+        setAt(idx, (m) => {
+          const parts = m.parts ?? [];
+          if (parts.some((p) => p.kind === 'change' && p.path === evt.path)) return m;
+          return { ...m, parts: [...parts, { kind: 'change', path: evt.path, created: evt.created }] };
+        });
         break;
       case 'usage':
         // claude-code reports per-message usage (resets across tool turns) then a
         // grand total; keep the max so the live counter never ticks backwards.
         setAt(idx, (m) => ({ ...m, tokens: Math.max(m.tokens ?? 0, evt.outputTokens) }));
+        // Context used-so-far ≈ this turn's prompt tokens (history + latest message)
+        // plus its output, which becomes part of history for the next turn.
+        if (evt.inputTokens != null) {
+          setContextUsage(evt.inputTokens + evt.outputTokens, evt.contextWindow);
+        }
         break;
       case 'error':
         appendTextAt(idx, `\n\n⚠️ ${evt.error}`);
@@ -71,13 +84,24 @@ export function useChatStream() {
     }
   };
 
-  const send = async (text: string, images: AttachedImage[]) => {
+  const send = async (text: string, images: AttachedImage[], mentionPaths: string[] = []) => {
     const trimmed = text.trim();
-    if ((!trimmed && images.length === 0) || busy) return;
+    if ((!trimmed && images.length === 0 && mentionPaths.length === 0) || busy) return;
 
     const state = useStore.getState();
     const file = activeFileTab(state);
-    const { model, permissionMode } = useAiStore.getState();
+    const { model, permissionMode, effort } = useAiStore.getState();
+
+    // Resolve @-mentioned files to their current disk content for the context block.
+    const mentionFiles: { path: string; content: string }[] = [];
+    for (const p of mentionPaths) {
+      try {
+        const f = await getFile(p);
+        mentionFiles.push({ path: f.path, content: f.content });
+      } catch {
+        /* skip a file that vanished */
+      }
+    }
 
     // Text-only history for prior turns; the current turn carries the images.
     const apiHistory = state.messages
@@ -105,8 +129,13 @@ export function useChatStream() {
 
     const body = {
       messages: history,
-      context: { filePath: file?.path, fileContent: file?.content, selection: state.selection ?? undefined },
-      options: { model, permissionMode },
+      context: {
+        filePath: file?.path,
+        fileContent: file?.content,
+        selection: state.selection ?? undefined,
+        files: mentionFiles.length ? mentionFiles : undefined,
+      },
+      options: { model, permissionMode, effort },
       images: images.map((i) => ({ mediaType: i.mediaType, data: i.dataBase64 })),
     };
 

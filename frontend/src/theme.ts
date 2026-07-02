@@ -34,22 +34,38 @@ interface Spec {
   accent: string;
 }
 
+/** Nudge `hex` away from `from` (mixing toward white on a dark base, black on a
+ *  light one) — but only when they'd otherwise be the exact same color. This
+ *  guarantees the editor/chat/terminal cards (--editor-bg / --bg-2) are never
+ *  indistinguishable from the frame behind them (--bg) in ANY theme, without
+ *  overriding a preset's own hand-picked colors when they already differ. */
+function ensureDistinctFrom(hex: string, from: string, base: ThemeBase): string {
+  if (hex.toLowerCase() !== from.toLowerCase()) return hex;
+  const { r, g, b } = hexToRgb(hex);
+  const toward = base === 'dark' ? 255 : 0;
+  const amount = 0.06; // matches the offset JetBrains New UI's own window→panel step uses
+  const mix = (c: number) => c + (toward - c) * amount;
+  return rgbToHex(mix(r), mix(g), mix(b));
+}
+
 function makePreset(id: string, name: string, s: Spec): ThemePreset {
+  const panel = ensureDistinctFrom(s.panel, s.window, s.base);
+  const editorBg = ensureDistinctFrom(s.editorBg, s.window, s.base);
   return {
     id,
     name,
     base: s.base,
-    editorBg: s.editorBg,
+    editorBg,
     editorFg: s.editorFg,
     defaultAccent: s.accent,
     vars: {
       '--bg': s.window,
-      '--bg-2': s.panel,
+      '--bg-2': panel,
       '--bg-3': s.raised,
       '--border': s.border,
       '--fg': s.fg,
       '--fg-dim': s.dim,
-      '--editor-bg': s.editorBg,
+      '--editor-bg': editorBg,
       '--editor-fg': s.editorFg,
       '--hover': s.base === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
     },
@@ -107,6 +123,11 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   if (h.length === 3) h = h.split('').map((c) => c + c).join('');
   const n = parseInt(h, 16);
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const c = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+  return `#${c(r)}${c(g)}${c(b)}`;
 }
 
 export function rgba(hex: string, a: number): string {

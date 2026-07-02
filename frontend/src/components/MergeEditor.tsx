@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react';
 import { useStore } from '../store';
 import { saveFile, gitStage } from '../api';
 import { defineJakIDETheme } from '../lib/monacoTheme';
+import { LINE_NUMBERS_MIN_CHARS, OVERFLOW_WIDGETS_OPTIONS } from '../lib/monacoSetup';
 import { langFor, basename } from '../lib/lang';
 import { parseConflicts, type ConflictBlock } from '../lib/conflicts';
 import { IconClose, IconCheck } from './icons';
@@ -78,11 +79,13 @@ export function MergeEditor({ tab, groupId }: { tab: MergeTab; groupId: string }
             onMount={(_e, m) => m.editor.setTheme('jakide')}
             onChange={(v) => setText(v ?? '')}
             options={{
+              ...OVERFLOW_WIDGETS_OPTIONS,
               fontSize: theme.fontSize,
               fontFamily: theme.fontFamily,
               automaticLayout: true,
               minimap: { enabled: false },
               scrollBeyondLastLine: false,
+              lineNumbersMinChars: LINE_NUMBERS_MIN_CHARS,
             }}
           />
         </div>
