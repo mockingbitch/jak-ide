@@ -6,6 +6,8 @@ interface JakideBridge {
   readonly pickFolder?: () => Promise<string | null>;
   readonly setApiKey?: () => Promise<void>;
   readonly toggleDevTools?: () => void;
+  readonly checkForUpdates?: () => Promise<void>;
+  readonly getAppVersion?: () => Promise<string>;
   readonly promptSubmit?: (value: string) => void;
   readonly promptCancel?: () => void;
   readonly winIsMaximized?: () => Promise<boolean>;

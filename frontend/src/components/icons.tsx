@@ -244,6 +244,23 @@ export const IconInfo = (p: P) => (
   </Svg>
 );
 
+export const IconPalette = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 3a9 8 0 0 0 0 16c1.1 0 1.7-.6 1.7-1.4 0-.4-.15-.7-.4-1-.25-.3-.4-.6-.4-1 0-.8.65-1.4 1.4-1.4H16a4 4 0 0 0 4-4c0-4-3.6-7.2-8-7.2z" />
+    <circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none" />
+    <circle cx="10.5" cy="7.2" r="1" fill="currentColor" stroke="none" />
+    <circle cx="14.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
+    <circle cx="16.8" cy="11" r="1" fill="currentColor" stroke="none" />
+  </Svg>
+);
+
+export const IconUser = (p: P) => (
+  <Svg {...p}>
+    <circle cx="12" cy="8" r="3.5" />
+    <path d="M5 20c0-3.6 3.1-6.5 7-6.5s7 2.9 7 6.5" />
+  </Svg>
+);
+
 export const IconAt = (p: P) => (
   <Svg {...p}>
     <circle cx="12" cy="12" r="3.5" />

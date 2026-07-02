@@ -40,6 +40,7 @@ export function MainMenu({
             <button onClick={() => pick(onOpenFolder)}>Open Folder…</button>
             <button onClick={() => pick(onSettings)}>Settings</button>
             {desktop && jak?.setApiKey && <button onClick={() => pick(() => jak.setApiKey!())}>Set Anthropic API Key…</button>}
+            {desktop && jak?.checkForUpdates && <button onClick={() => pick(() => jak.checkForUpdates!())}>Check for Updates…</button>}
             <div className="ctx-sep" />
             {desktop && jak?.toggleDevTools && (
               <button onClick={() => pick(() => jak.toggleDevTools!())}>Toggle Developer Tools</button>

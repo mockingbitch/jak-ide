@@ -35,12 +35,67 @@
 .modal-body section {
   margin-top: 18px;
 }
+.modal-body section:first-child {
+  margin-top: 0;
+}
 .modal-body h4 {
   margin: 0 0 10px;
   font-size: 11px;
   color: var(--fg-dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+/* ---- settings modal: left-nav categories + scrollable content pane ---- */
+.modal.settings-modal {
+  width: 760px;
+  max-width: 94vw;
+  height: 600px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.settings-layout {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.settings-nav {
+  flex: 0 0 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 8px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.settings-nav button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--fg-dim);
+  text-align: left;
+  font-size: 13px;
+}
+.settings-nav button:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+.settings-nav button.active {
+  background: var(--accent-soft);
+  color: var(--fg);
+  font-weight: 600;
+}
+.settings-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
 }
 .preset-grid {
   display: grid;

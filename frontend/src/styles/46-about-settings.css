@@ -1,0 +1,44 @@
+/* ---- settings: About ---- */
+.about-section {
+  padding-top: 6px;
+}
+.about-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.about-identity img {
+  border-radius: var(--radius-lg);
+  flex: 0 0 auto;
+}
+.about-name {
+  font-size: 20px;
+  font-weight: 700;
+}
+.about-version {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.about-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 18px;
+}
+.about-links a {
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: none;
+  width: fit-content;
+}
+.about-links a:hover {
+  text-decoration: underline;
+}
+.about-legal {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11.5px;
+  line-height: 1.6;
+}

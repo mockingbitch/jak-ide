@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('jakide', {
   // Hamburger-menu actions that replace the old native File/View menu.
   setApiKey: () => ipcRenderer.invoke('jakide:set-api-key'),
   toggleDevTools: () => ipcRenderer.invoke('jakide:toggle-devtools'),
+  checkForUpdates: () => ipcRenderer.invoke('jakide:check-for-updates'),
+  getAppVersion: () => ipcRenderer.invoke('jakide:app-version'),
   promptSubmit: (value) => ipcRenderer.send('jakide:prompt-submit', value),
   promptCancel: () => ipcRenderer.send('jakide:prompt-cancel'),
   // Custom titlebar window controls (the OS frame is disabled).

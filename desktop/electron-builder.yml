@@ -10,6 +10,14 @@ asar: false
 directories:
   output: release
 
+# Feeds electron-updater (see updater.js): where to look for new releases and
+# what `npm run release` (electron-builder --publish always) uploads to.
+# Auto-update only actually works for the AppImage target — see updater.js.
+publish:
+  provider: github
+  owner: mockingbitch
+  repo: jakide
+
 files:
   - main.js
   - preload.js

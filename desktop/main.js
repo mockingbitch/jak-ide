@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const net = require('node:net');
 const http = require('node:http');
 const { spawn } = require('node:child_process');
+const updater = require('./updater');
 
 const DEV_URL = process.env.JAKIDE_DEV_URL || '';
 const isDev = Boolean(DEV_URL);
@@ -320,9 +321,11 @@ function promptText({ title, label, value = '', password = false }) {
 }
 
 // ---------------------------------------------------------------------------
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   Menu.setApplicationMenu(null); // no native File/View/Help bar — actions live in the in-app hamburger
-  createWindow();
+  await createWindow();
+  // Give the window a moment to finish loading before competing for bandwidth/attention.
+  setTimeout(() => updater.checkOnStartup(mainWindow), 3000);
 });
 
 // Native folder picker for the in-app project switcher. The renderer then calls
@@ -346,6 +349,10 @@ ipcMain.handle('jakide:set-api-key', async () => {
 ipcMain.handle('jakide:toggle-devtools', () => {
   if (mainWindow) mainWindow.webContents.toggleDevTools();
 });
+ipcMain.handle('jakide:check-for-updates', () => {
+  updater.checkNow(mainWindow);
+});
+ipcMain.handle('jakide:app-version', () => app.getVersion());
 
 // Custom titlebar window controls (the OS frame is disabled — see createWindow).
 ipcMain.handle('jakide:win-is-maximized', () => !!mainWindow && mainWindow.isMaximized());
