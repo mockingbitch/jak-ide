@@ -21,6 +21,25 @@ export interface ThemeSetting {
 export const FONT_FALLBACK = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace';
 export const DEFAULT_FONT = `"JetBrains Mono", "Fira Code", "Cascadia Code", ${FONT_FALLBACK}`;
 
+// Shell prompts print glyphs a plain code font can't render, which show as □/tofu:
+// emoji (jaksh uses 🌤 👋 💡 ⚡), technical/box symbols (its ⌬ prompt mark), and
+// sometimes Nerd-Font/powerline icons. The terminal font stack therefore appends
+// emoji + symbol + Nerd-Font families; the browser falls back per-glyph to whichever
+// is installed. Emoji names are cross-platform (Linux/macOS/Windows).
+const TERMINAL_GLYPH_FALLBACK = [
+  '"Noto Color Emoji"',
+  '"Apple Color Emoji"',
+  '"Segoe UI Emoji"',
+  '"Noto Sans Symbols2"',
+  '"Noto Sans Symbols"',
+  '"JetBrainsMono Nerd Font"',
+  '"Symbols Nerd Font Mono"',
+  '"Symbols Nerd Font"',
+].join(', ');
+
+/** The code font plus emoji/symbol/Nerd-Font fallbacks, for xterm terminals. */
+export const terminalFontFamily = (codeFont: string): string => `${codeFont}, ${TERMINAL_GLYPH_FALLBACK}`;
+
 interface Spec {
   base: ThemeBase;
   window: string;

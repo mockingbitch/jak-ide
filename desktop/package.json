@@ -7,6 +7,7 @@
   "homepage": "https://github.com/mockingbitch/jakide",
   "license": "MIT",
   "main": "main.js",
+  "desktopName": "jakide.desktop",
   "scripts": {
     "dev": "concurrently -k -n core,backend,frontend,electron -c yellow,blue,green,magenta \"node scripts/dev-core.mjs\" \"PORT=8788 npm --prefix ../backend run dev\" \"npm --prefix ../frontend run dev\" \"npm run dev:electron\"",
     "dev:electron": "wait-on tcp:5173 tcp:8787 && JAKIDE_DEV_URL=http://localhost:5173 electron --no-sandbox .",

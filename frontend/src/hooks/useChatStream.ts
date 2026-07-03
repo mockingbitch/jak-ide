@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useStore, activeFileTab } from '../store';
 import { useAiStore } from '../lib/aiStore';
+import { diffStat } from '../lib/diffStat';
 import { getFile } from '../api';
 import type { ChatMessage, ChatStreamEvent, MessagePart } from '../types';
 import type { AttachedImage } from '../lib/imageAttach';
@@ -58,8 +59,12 @@ export function useChatStream() {
           ),
         }));
         break;
-      case 'file_change':
-        recordChange(evt.path, evt.before, evt.created);
+      case 'file_change': {
+        // Stat is cumulative for the turn: the pinned baseline (or this event's
+        // `before` on the first edit) vs the latest content.
+        const baseline = useStore.getState().changes[evt.path]?.before ?? evt.before;
+        const { additions, deletions } = diffStat(baseline, evt.after);
+        recordChange(evt.path, evt.before, evt.created, additions, deletions);
         applyAiChange(evt.path, evt.after);
         // Surface the edit inline in the answer (one card per file per turn).
         setAt(idx, (m) => {
@@ -68,6 +73,7 @@ export function useChatStream() {
           return { ...m, parts: [...parts, { kind: 'change', path: evt.path, created: evt.created }] };
         });
         break;
+      }
       case 'usage':
         // claude-code reports per-message usage (resets across tool turns) then a
         // grand total; keep the max so the live counter never ticks backwards.
@@ -84,12 +90,13 @@ export function useChatStream() {
     }
   };
 
-  const send = async (text: string, images: AttachedImage[], mentionPaths: string[] = []) => {
+  const send = async (text: string, images: AttachedImage[], mentionPaths: string[] = [], includeCurrentFile = true) => {
     const trimmed = text.trim();
     if ((!trimmed && images.length === 0 && mentionPaths.length === 0) || busy) return;
 
     const state = useStore.getState();
-    const file = activeFileTab(state);
+    // The active file is sent as context unless the user removed its pill in the composer.
+    const file = includeCurrentFile ? activeFileTab(state) : undefined;
     const { model, permissionMode, effort } = useAiStore.getState();
 
     // Resolve @-mentioned files to their current disk content for the context block.
@@ -132,7 +139,7 @@ export function useChatStream() {
       context: {
         filePath: file?.path,
         fileContent: file?.content,
-        selection: state.selection ?? undefined,
+        selection: file ? state.selection ?? undefined : undefined,
         files: mentionFiles.length ? mentionFiles : undefined,
       },
       options: { model, permissionMode, effort },

@@ -17,6 +17,7 @@ interface Props {
   disabled: boolean;
   placeholder: string;
   contextPath?: string; // active file, shown as a Cursor-style context pill
+  onRemoveContext?: () => void; // drop the current-file pill from context
   mentions: string[]; // @-mentioned files added to context
   onAddMention: (path: string) => void;
   onRemoveMention: (path: string) => void;
@@ -35,6 +36,7 @@ export function ChatComposer({
   disabled,
   placeholder,
   contextPath,
+  onRemoveContext,
   mentions,
   onAddMention,
   onRemoveMention,
@@ -65,7 +67,8 @@ export function ChatComposer({
   };
 
   const submit = () => {
-    if (busy || disabled) return;
+    // While busy we don't block — onSend pushes the prompt onto the queue instead.
+    if (disabled) return;
     const text = input.trim();
     if (!text && attachments.length === 0 && mentions.length === 0) return;
     onSend(input);
@@ -116,6 +119,11 @@ export function ChatComposer({
                 <FileIcon name={base(contextPath)} />
                 <span className="ctx-name">{base(contextPath)}</span>
                 <span className="ctx-tag">current</span>
+                {onRemoveContext && (
+                  <button className="ctx-x" title="Remove current file from context" onClick={onRemoveContext}>
+                    <IconClose size={10} />
+                  </button>
+                )}
               </span>
             )}
             {mentions.map((p) => (

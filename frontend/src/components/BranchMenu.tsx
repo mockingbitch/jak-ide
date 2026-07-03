@@ -12,7 +12,14 @@ import {
   gitPull,
 } from '../api';
 import type { GitBranches } from '../types';
+import { PromptDialog } from './PromptDialog';
 import { IconCheck, IconPlus, IconBranch, IconTrash, IconRefresh, IconArrowDown, IconPencil } from './icons';
+
+// A pending name-input dialog (create branch / rename), driven by PromptDialog —
+// Electron has no window.prompt(), so prompt()-based flows silently no-op.
+type BranchDialog =
+  | { kind: 'new'; from?: string }
+  | { kind: 'rename'; old: string };
 
 /** PhpStorm-style branch management popup (content only — parent positions it). */
 export function BranchMenu({ onClose }: { onClose: () => void }) {
@@ -20,6 +27,7 @@ export function BranchMenu({ onClose }: { onClose: () => void }) {
   const [data, setData] = useState<GitBranches | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<BranchDialog | null>(null);
 
   const load = async () => {
     try {
@@ -53,13 +61,14 @@ export function BranchMenu({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const newBranch = (from?: string) => {
-    const name = prompt(from ? `New branch from "${from}":` : 'New branch name:');
-    if (name && name.trim()) run(() => gitCreateBranch(name.trim(), true, from), true);
-  };
-  const rename = (old: string) => {
-    const name = prompt(`Rename branch "${old}" to:`, old);
-    if (name && name.trim() && name.trim() !== old) run(() => gitRenameBranch(old, name.trim()));
+  const submitDialog = (value: string) => {
+    if (!dialog) return;
+    if (dialog.kind === 'new') {
+      run(() => gitCreateBranch(value, true, dialog.from), true);
+    } else if (value !== dialog.old) {
+      run(() => gitRenameBranch(dialog.old, value));
+    }
+    setDialog(null);
   };
   const del = (name: string) => {
     if (!confirm(`Delete branch "${name}"?`)) return;
@@ -95,7 +104,7 @@ export function BranchMenu({ onClose }: { onClose: () => void }) {
           <IconArrowDown size={13} /> Update (Pull)
         </button>
       </div>
-      <button className="branch-menu-item new" disabled={busy} onClick={() => newBranch()}>
+      <button className="branch-menu-item new" disabled={busy} onClick={() => setDialog({ kind: 'new' })}>
         <IconPlus size={15} />
         <span>New Branch…</span>
       </button>
@@ -114,7 +123,7 @@ export function BranchMenu({ onClose }: { onClose: () => void }) {
             <span className="branch-name">{b.name}</span>
           </button>
           <span className="branch-row-actions">
-            <button className="icon-btn xs" title="New branch from here" disabled={busy} onClick={() => newBranch(b.name)}>
+            <button className="icon-btn xs" title="New branch from here" disabled={busy} onClick={() => setDialog({ kind: 'new', from: b.name })}>
               <IconPlus size={13} />
             </button>
             {!b.current && (
@@ -122,7 +131,7 @@ export function BranchMenu({ onClose }: { onClose: () => void }) {
                 <IconBranch size={13} />
               </button>
             )}
-            <button className="icon-btn xs" title="Rename" disabled={busy} onClick={() => rename(b.name)}>
+            <button className="icon-btn xs" title="Rename" disabled={busy} onClick={() => setDialog({ kind: 'rename', old: b.name })}>
               <IconPencil size={13} />
             </button>
             {!b.current && (
@@ -151,6 +160,18 @@ export function BranchMenu({ onClose }: { onClose: () => void }) {
             </div>
           ))}
         </>
+      )}
+
+      {dialog && (
+        <PromptDialog
+          title={dialog.kind === 'new' ? 'New Branch' : `Rename Branch "${dialog.old}"`}
+          label={dialog.kind === 'new' ? (dialog.from ? `Create from "${dialog.from}"` : 'Branch name') : 'New name'}
+          initial={dialog.kind === 'rename' ? dialog.old : ''}
+          placeholder="feature/my-branch"
+          confirmLabel={dialog.kind === 'new' ? 'Create' : 'Rename'}
+          onSubmit={submitDialog}
+          onClose={() => setDialog(null)}
+        />
       )}
     </div>
   );

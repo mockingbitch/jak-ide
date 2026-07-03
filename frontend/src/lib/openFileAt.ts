@@ -1,6 +1,6 @@
 import type { Monaco } from '@monaco-editor/react';
 import { useStore } from '../store';
-import { getFile } from '../api';
+import { getFile, getExternalFile } from '../api';
 import { getEditor } from './editorRegistry';
 
 /** Open `path` as a tab and reveal a 1-based (line, col) in the active group's editor.
@@ -27,4 +27,12 @@ export async function openFileAndReveal(monaco: Monaco, path: string, line?: num
     if (tries++ < 40) requestAnimationFrame(reveal);
   };
   requestAnimationFrame(reveal);
+}
+
+/** Open a file OUTSIDE the project root read-only (a go-to-definition target in a
+ *  dependency or language-server stub) and reveal a 1-based (line, col). The reveal
+ *  itself is done by ExternalFileTab, which watches its `reveal` prop. */
+export async function openExternalAndReveal(absPath: string, line = 1, col = 1): Promise<void> {
+  const f = await getExternalFile(absPath);
+  useStore.getState().openExternalTab({ path: absPath, content: f.content, line, col });
 }

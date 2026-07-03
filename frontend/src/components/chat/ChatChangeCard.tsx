@@ -8,7 +8,10 @@ const base = (p: string) => p.split('/').pop() ?? p;
  *  or Revert. Once resolved (no longer in store.changes) it shows a settled state. */
 export function ChatChangeCard({ path, created }: { path: string; created?: boolean }) {
   const { changes, open, keep, revert } = useChangeActions();
-  const pending = !!changes[path];
+  const entry = changes[path];
+  const pending = !!entry;
+  const additions = entry?.additions ?? 0;
+  const deletions = entry?.deletions ?? 0;
 
   return (
     <div className={'chat-change-card' + (pending ? '' : ' resolved')}>
@@ -17,6 +20,12 @@ export function ChatChangeCard({ path, created }: { path: string; created?: bool
         <FileIcon name={base(path)} />
         <span className="chg-name">{base(path)}</span>
       </button>
+      {pending && (additions > 0 || deletions > 0) && (
+        <span className="chg-stat" title={`+${additions} −${deletions} lines`}>
+          {additions > 0 && <span className="chg-add">+{additions}</span>}
+          {deletions > 0 && <span className="chg-del">−{deletions}</span>}
+        </span>
+      )}
       {pending ? (
         <span className="chg-btns">
           <button className="chat-link" onClick={() => keep(path)}>

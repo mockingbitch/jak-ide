@@ -6,7 +6,7 @@ import { useStore } from '../store';
 import { createLspClient, type LspClient } from '../lib/lsp/client';
 import { registerLspProviders } from '../lib/lsp/providers';
 import { setLspBridge } from '../lib/lsp/bridge';
-import { openFileAndReveal } from '../lib/openFileAt';
+import { openFileAndReveal, openExternalAndReveal } from '../lib/openFileAt';
 import { clientLang, diagnosticToMarker, lspLanguageId, type LspDiagnostic } from '../lib/lsp/protocol';
 
 const CHANGE_DEBOUNCE = 300;
@@ -51,6 +51,9 @@ export function useLsp(): void {
 
     const attach = (model: editor.ITextModel) => {
       if (model.isDisposed()) return;
+      // Only track in-project file models (relative path, empty URI scheme). Skip
+      // external read-only tabs (`ext:` scheme) and other aux models.
+      if (model.uri.scheme) return;
       const path = relPathOf(model);
       const langId = clientLang(path);
       const key = model.uri.toString();
@@ -91,8 +94,6 @@ export function useLsp(): void {
     // resource that isn't the current model, open it as a tab and reveal the position.
     const opener = monaco.editor.registerEditorOpener({
       openCodeEditor(_source, resource, selectionOrPosition) {
-        const rel = resource.path.replace(/^\/+/, '');
-        if (!rel) return false;
         let line: number | undefined;
         let col = 1;
         if (selectionOrPosition) {
@@ -104,6 +105,13 @@ export function useLsp(): void {
             col = selectionOrPosition.column;
           }
         }
+        // Out-of-project target (stdlib stub / external dependency) → read-only tab.
+        if (resource.scheme === 'file') {
+          openExternalAndReveal(resource.path, line ?? 1, col).catch(() => {});
+          return true;
+        }
+        const rel = resource.path.replace(/^\/+/, '');
+        if (!rel) return false;
         openFileAndReveal(monaco, rel, line, col).catch(() => {});
         return true;
       },

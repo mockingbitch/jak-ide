@@ -8,11 +8,21 @@ import { useChatHistory } from '../lib/chatHistoryStore';
 import { ChatMessageView } from './chat/ChatMessage';
 import { ChatComposer } from './chat/ChatComposer';
 import { ChatChanges } from './chat/ChatChanges';
+import { ChatQueue } from './chat/ChatQueue';
 import { ChatHistoryMenu } from './chat/ChatHistoryMenu';
 import { WorkingIndicator } from './chat/WorkingIndicator';
 import { IconPlus } from './icons';
 
 const SUGGESTIONS = ['Explain this file', 'Find a bug', 'Add tests', 'Write a commit message'];
+
+// A prompt the user submitted while a reply was streaming — parked until its turn.
+interface QueuedPrompt {
+  id: number;
+  text: string;
+  images: AttachedImage[];
+  mentions: string[];
+  includeCurrentFile: boolean;
+}
 
 // Which real engine is answering — the app supports only Claude today (via the
 // `claude` CLI, or the Anthropic API directly), surfaced from the resolved auth
@@ -42,15 +52,27 @@ export function ChatPanel() {
 
   const { send, stop, busy } = useChatStream();
 
+  // --- prompt queue: prompts submitted mid-stream run one after another ---
+  const [queue, setQueue] = useState<QueuedPrompt[]>([]);
+  // `busy` only flips true a render (or an await) after send() starts; this guards
+  // that gap so the drain effect never double-dispatches.
+  const dispatchingRef = useRef(false);
+  const nextQueueId = useRef(0);
+  // Stop the current reply AND drop anything queued (a manual stop cancels the batch).
+  const stopAll = () => {
+    stop();
+    setQueue([]);
+  };
+
   // Archive the current chat, then either clear (New chat) or load a past one.
   const newChat = () => {
-    stop();
+    stopAll();
     archiveChat(useStore.getState().messages);
     setMessages([]);
     clearContextUsage();
   };
   const openHistory = (id: string) => {
-    stop();
+    stopAll();
     archiveChat(useStore.getState().messages);
     const msgs = loadChat(id);
     if (msgs) setMessages(msgs);
@@ -60,6 +82,12 @@ export function ChatPanel() {
   const [mentions, setMentions] = useState<string[]>([]);
   const [dragging, setDragging] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
+
+  // The active file is bound as context by default; the user can remove its pill,
+  // and switching to another file re-binds (dismissal is per active-file path).
+  const [ctxDismissed, setCtxDismissed] = useState(false);
+  useEffect(() => setCtxDismissed(false), [file?.path]);
+  const includeCurrentFile = !!file && !ctxDismissed;
 
   const addMention = (path: string) => setMentions((prev) => (prev.includes(path) ? prev : [...prev, path]));
   const removeMention = (path: string) => setMentions((prev) => prev.filter((p) => p !== path));
@@ -92,11 +120,35 @@ export function ChatPanel() {
   };
   const removeImage = (id: string) => setAttachments((prev) => prev.filter((a) => a.id !== id));
 
+  const runPrompt = (p: QueuedPrompt) => {
+    dispatchingRef.current = true;
+    send(p.text, p.images, p.mentions, p.includeCurrentFile);
+  };
+
+  // Submit: run now if idle, else park on the queue. Attachments/mentions are captured
+  // per prompt and cleared so the composer is ready for the next.
   const onSend = (text: string) => {
-    send(text, attachments, mentions);
+    const p: QueuedPrompt = { id: ++nextQueueId.current, text, images: attachments, mentions, includeCurrentFile };
     setAttachments([]);
     setMentions([]);
+    if (busy || dispatchingRef.current || queue.length > 0) setQueue((q) => [...q, p]);
+    else runPrompt(p);
   };
+  const removeQueued = (id: number) => setQueue((q) => q.filter((p) => p.id !== id));
+
+  // Once the stream is actually running, release the dispatch guard.
+  useEffect(() => {
+    if (busy) dispatchingRef.current = false;
+  }, [busy]);
+  // When the current reply finishes and nothing is in flight, run the next queued prompt.
+  useEffect(() => {
+    if (busy || dispatchingRef.current || queue.length === 0) return;
+    const [next, ...rest] = queue;
+    setQueue(rest);
+    runPrompt(next);
+    // runPrompt/send are captured from this render; deps intentionally just the triggers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, queue]);
 
   const signIn = async () => {
     if (authBusy) return;
@@ -139,7 +191,7 @@ export function ChatPanel() {
         // the panel), so it never steals Escape from an open modal.
         if (busy && e.key === 'Escape' && !e.nativeEvent.isComposing) {
           e.preventDefault();
-          stop();
+          stopAll();
         }
       }}
     >
@@ -206,23 +258,26 @@ export function ChatPanel() {
         )}
       </div>
 
-      {permissionMode !== 'plan' && <ChatChanges />}
+      {permissionMode !== 'plan' && <ChatChanges busy={busy} />}
 
-      {busy && <WorkingIndicator onStop={stop} />}
+      {busy && <WorkingIndicator onStop={stopAll} />}
+
+      <ChatQueue items={queue} onRemove={removeQueued} />
 
       <ChatComposer
         attachments={attachments}
         onAddFiles={addFiles}
         onRemove={removeImage}
         onSend={onSend}
-        onStop={stop}
+        onStop={stopAll}
         busy={busy}
         disabled={!auth.hasAuth}
-        contextPath={file?.path}
+        contextPath={includeCurrentFile ? file?.path : undefined}
+        onRemoveContext={() => setCtxDismissed(true)}
         mentions={mentions}
         onAddMention={addMention}
         onRemoveMention={removeMention}
-        placeholder={file ? `Ask or instruct about ${file.path.split('/').pop()}…` : 'Ask or instruct Claude…'}
+        placeholder={busy ? 'Queue another prompt…' : file ? `Ask or instruct about ${file.path.split('/').pop()}…` : 'Ask or instruct Claude…'}
       />
 
       {dragging > 0 && <div className="chat-dropzone">Drop image to attach</div>}

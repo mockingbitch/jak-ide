@@ -15,6 +15,7 @@ import type {
   EditorTab,
   EditorGroup,
   FileTab,
+  MergeSession,
 } from './types';
 import { basename } from './lib/lang';
 import { newGroup, mapGroup, closeOne, closeManyIn, collapseEmptyGroups } from './lib/editorGroups';
@@ -134,8 +135,9 @@ interface State {
   activeTerminalId: string | null;
   termSeq: number;
 
-  // AI-made changes pending Keep/Revert (path -> baseline before the edits; created = file is new)
-  changes: Record<string, { before: string; created?: boolean }>;
+  // AI-made changes pending Keep/Revert (path -> baseline before the edits; created = file is new;
+  // additions/deletions = line stat of baseline→latest, for the chat "changed files" list)
+  changes: Record<string, { before: string; created?: boolean; additions?: number; deletions?: number }>;
 
   setTree: (t: TreeNode) => void;
 
@@ -180,7 +182,7 @@ interface State {
   closeTerminal: (id: string) => void;
   setActiveTerminal: (id: string) => void;
 
-  recordChange: (path: string, before: string, created?: boolean) => void;
+  recordChange: (path: string, before: string, created?: boolean, additions?: number, deletions?: number) => void;
   clearChange: (path: string) => void;
   clearAllChanges: () => void;
 
@@ -190,8 +192,14 @@ interface State {
   setGitFiles: (files: GitFileEntry[]) => void;
   openGitDiff: (d: GitFileDiff) => void;
   openGitHistory: (h: { path: string; commits: GitCommit[] }) => void;
-  openMergeView: (m: { path: string; base: string; ours: string; theirs: string; working: string }) => void;
-  setMergeResult: (tabId: string, result: string) => void;
+  // Open a file outside the project root read-only (go-to-definition into a dependency
+  // / stub). Re-calling with a new (line, col) re-navigates the already-open tab.
+  openExternalTab: (f: { path: string; content: string; line: number; col: number }) => void;
+  // 3-way merge modal (conflict resolution) — a single session at a time.
+  mergeModal: MergeSession | null;
+  openMergeModal: (m: { path: string; base: string; ours: string; theirs: string; working: string }) => void;
+  closeMergeModal: () => void;
+  setMergeModalResult: (result: string) => void;
   bumpGitRefresh: () => void;
 
   toggleLeft: () => void;
@@ -228,6 +236,7 @@ export const useStore = create<State>((set, get) => ({
   folderPickerOpen: false,
   git: { repo: false, branch: null, ahead: 0, behind: 0, changed: 0, detached: false },
   gitFiles: [],
+  mergeModal: null,
   gitRefreshSeq: 0,
   auth: { method: 'none', hasAuth: false, antInstalled: false },
   authBusy: false,
@@ -386,8 +395,8 @@ export const useStore = create<State>((set, get) => ({
             return { ...t, id: `diff:${np}:${t.diff.mode}`, path: np, title: `Diff: ${bn}` };
           case 'history':
             return { ...t, id: `history:${np}`, path: np, title: `History: ${bn}` };
-          case 'merge':
-            return { ...t, id: `merge:${np}`, path: np, title: `Merge: ${bn}` };
+          case 'external':
+            return t; // external files live outside the project; no rename remap
         }
       };
       return {
@@ -453,6 +462,7 @@ export const useStore = create<State>((set, get) => ({
       activeTerminalId: null,
       gitFiles: [],
       git: { repo: false, branch: null, ahead: 0, behind: 0, changed: 0, detached: false },
+      mergeModal: null,
       contextUsage: null,
     })),
 
@@ -462,24 +472,23 @@ export const useStore = create<State>((set, get) => ({
     set((s) => openAux(s, { id: `diff:${d.path}:${d.mode}`, kind: 'diff', path: d.path, title: `Diff: ${basename(d.path)}`, diff: d })),
   openGitHistory: (h) =>
     set((s) => openAux(s, { id: `history:${h.path}`, kind: 'history', path: h.path, title: `History: ${basename(h.path)}`, commits: h.commits })),
-  openMergeView: (m) =>
+  openExternalTab: (f) =>
+    // A fresh `reveal` object each call so re-opening an already-open external tab
+    // re-navigates (ExternalFileTab watches its identity).
     set((s) =>
       openAux(s, {
-        id: `merge:${m.path}`,
-        kind: 'merge',
-        path: m.path,
-        title: `Merge: ${basename(m.path)}`,
-        merge: { base: m.base, ours: m.ours, theirs: m.theirs, working: m.working },
-        result: m.working,
+        id: `ext:${f.path}`,
+        kind: 'external',
+        path: f.path,
+        title: basename(f.path),
+        content: f.content,
+        reveal: { line: f.line, col: f.col },
       })
     ),
-  setMergeResult: (tabId, result) =>
-    set((s) => ({
-      groups: s.groups.map((g) => ({
-        ...g,
-        tabs: g.tabs.map((t) => (t.id === tabId && t.kind === 'merge' ? { ...t, result } : t)),
-      })),
-    })),
+  openMergeModal: (m) =>
+    set({ mergeModal: { path: m.path, base: m.base, ours: m.ours, theirs: m.theirs, result: m.working } }),
+  closeMergeModal: () => set({ mergeModal: null }),
+  setMergeModalResult: (result) => set((s) => (s.mergeModal ? { mergeModal: { ...s.mergeModal, result } } : {})),
   bumpGitRefresh: () => set((s) => ({ gitRefreshSeq: s.gitRefreshSeq + 1 })),
   setAuth: (auth) => set({ auth }),
   setAuthBusy: (authBusy) => set({ authBusy }),
@@ -506,8 +515,14 @@ export const useStore = create<State>((set, get) => ({
     }),
   setActiveTerminal: (id) => set({ activeTerminalId: id }),
 
-  recordChange: (path, before, created) =>
-    set((s) => (s.changes[path] ? {} : { changes: { ...s.changes, [path]: { before, created } } })),
+  // First edit of a turn pins the baseline (before/created); repeat edits keep that
+  // baseline but refresh the line stat (baseline → latest content).
+  recordChange: (path, before, created, additions, deletions) =>
+    set((s) => {
+      const prev = s.changes[path];
+      const rec = prev ? { ...prev, additions, deletions } : { before, created, additions, deletions };
+      return { changes: { ...s.changes, [path]: rec } };
+    }),
   clearChange: (path) =>
     set((s) => {
       if (!s.changes[path]) return {};

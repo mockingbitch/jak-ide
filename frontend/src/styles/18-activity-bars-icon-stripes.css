@@ -35,3 +35,25 @@
   background: var(--accent-soft);
   color: var(--accent);
 }
+/* Count badge in the button's top-right corner (e.g. changed files on Version
+   Control). Accent-coloured — a count, not an error. The ring separates it from
+   the icon on both idle and active (accent-soft) button backgrounds. */
+.activity-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px var(--bg);
+}

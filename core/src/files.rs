@@ -23,6 +23,7 @@ pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/api/files/tree", get(tree))
         .route("/api/files/file", get(read_file))
+        .route("/api/files/external", get(read_external))
         .route("/api/files/file/save", post(save))
         .route("/api/files/file/create", post(create))
         .route("/api/files/file/delete", post(delete_path))
@@ -113,6 +114,26 @@ async fn read_file(State(st): State<Arc<AppState>>, Query(q): Query<PathQuery>) 
         return Err(ApiError::bad("path query param is required"));
     }
     let abs = resolve_safe(&st.root(), &q.path)?;
+    let meta = std::fs::metadata(&abs)?;
+    if !meta.is_file() {
+        return Err(ApiError::bad("Not a file"));
+    }
+    if meta.len() > MAX_FILE_BYTES {
+        return Err(ApiError::code(StatusCode::PAYLOAD_TOO_LARGE, "File too large to open in the editor"));
+    }
+    let content = String::from_utf8_lossy(&std::fs::read(&abs)?).into_owned();
+    Ok(Json(FileResp { content, path: q.path }))
+}
+
+/// Read-only view of a file OUTSIDE the project root — a go-to-definition target in
+/// a language-server stub or an out-of-repo dependency. Deliberately bypasses the
+/// project-root sandbox (`resolve_safe`), so it accepts only absolute paths and never
+/// writes. Used by external (read-only) editor tabs.
+async fn read_external(Query(q): Query<PathQuery>) -> ApiResult<Json<FileResp>> {
+    let abs = PathBuf::from(&q.path);
+    if !abs.is_absolute() {
+        return Err(ApiError::bad("absolute path required"));
+    }
     let meta = std::fs::metadata(&abs)?;
     if !meta.is_file() {
         return Err(ApiError::bad("Not a file"));

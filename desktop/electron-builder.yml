@@ -21,6 +21,7 @@ publish:
 files:
   - main.js
   - preload.js
+  - updater.js
   - prompt.html
   - "app/**/*"
   - "assets/**/*"
@@ -35,3 +36,9 @@ linux:
   synopsis: "AI-first IDE"
   executableName: jakide
   artifactName: "${productName}-${version}.${ext}"
+  # Electron sets the Wayland app_id / X11 WM_CLASS from package.json `desktopName`
+  # ("jakide"). syncDesktopName names the .desktop file and its StartupWMClass to
+  # match, so GNOME (and other DEs) can associate the running window with this entry
+  # and show the app icon in the dock/taskbar. Without it, the app_id defaults to the
+  # package `name` ("jakide-desktop") and matches nothing → generic dock icon.
+  syncDesktopName: true

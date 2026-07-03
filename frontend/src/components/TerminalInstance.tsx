@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { useStore } from '../store';
-import { xtermTheme } from '../theme';
+import { xtermTheme, terminalFontFamily } from '../theme';
 
 function safeCloseWs(ws: WebSocket | null) {
   if (!ws) return;
@@ -35,7 +35,7 @@ export function TerminalInstance({
     if (!hostRef.current) return;
     const term = new Terminal({
       fontSize: theme.fontSize,
-      fontFamily: theme.fontFamily,
+      fontFamily: terminalFontFamily(theme.fontFamily),
       cursorBlink: true,
       theme: xtermTheme(theme),
       scrollback: 5000,
@@ -126,7 +126,7 @@ export function TerminalInstance({
     if (!term) return;
     term.options.theme = xtermTheme(theme);
     term.options.fontSize = theme.fontSize;
-    term.options.fontFamily = theme.fontFamily;
+    term.options.fontFamily = terminalFontFamily(theme.fontFamily);
     try {
       fitRef.current?.fit();
     } catch {

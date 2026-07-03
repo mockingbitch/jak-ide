@@ -14,7 +14,7 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
 use serde::Deserialize;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::ChildStdout;
 use tokio::process::Command;
 use tokio::sync::mpsc::{self, Sender};
@@ -35,39 +35,72 @@ async fn ws_upgrade(ws: WebSocketUpgrade, Query(q): Query<LspQuery>, State(st): 
     ws.on_upgrade(move |socket| session(socket, st, lang))
 }
 
-/// (program, args) of the language server for a Monaco language id, or None if we
-/// don't support it. The program is resolved on PATH (the desktop launcher prepends
-/// its node_modules/.bin); an env override allows pinning an explicit binary.
-fn server_for(lang: &str) -> Option<(String, Vec<&'static str>)> {
-    let env_or = |key: &str, default: &str| std::env::var(key).unwrap_or_else(|_| default.into());
-    match lang {
+/// How to launch the language server for a Monaco language id.
+struct ServerCmd {
+    prog: String,
+    args: Vec<String>,
+    /// Run `prog` as Node (Electron via ELECTRON_RUN_AS_NODE) — set when we launch a
+    /// bundled `.js`/`.mjs` server entry through the app's own runtime.
+    as_node: bool,
+}
+
+/// The language server for a Monaco language id, or None if unsupported. Resolution
+/// order per language:
+///  1. `JAKIDE_LSP_<LANG>` — an explicit server binary (a name on PATH or an absolute path).
+///  2. `JAKIDE_LSP_NODE` + `JAKIDE_LSP_<LANG>_MODULE` — run the bundled JS server entry
+///     via the app's Node-capable runtime. This is how the packaged desktop app finds
+///     its servers without relying on `node_modules/.bin` symlinks (electron-builder
+///     does not recreate them, so a bare-name PATH lookup fails there).
+///  3. A bare program name resolved on PATH (the dev default, where `.bin` exists).
+fn server_for(lang: &str) -> Option<ServerCmd> {
+    let var = |key: &str| std::env::var(key).ok().filter(|s| !s.is_empty());
+    let (bin_key, module_key, default_prog, args): (&str, &str, &str, &[&str]) = match lang {
         "typescript" | "typescriptreact" | "javascript" | "javascriptreact" => {
-            Some((env_or("JAKIDE_LSP_TYPESCRIPT", "typescript-language-server"), vec!["--stdio"]))
+            ("JAKIDE_LSP_TYPESCRIPT", "JAKIDE_LSP_TYPESCRIPT_MODULE", "typescript-language-server", &["--stdio"])
         }
-        "python" => Some((env_or("JAKIDE_LSP_PYTHON", "pyright-langserver"), vec!["--stdio"])),
-        "go" => Some((env_or("JAKIDE_LSP_GO", "gopls"), vec![])),
-        "php" => Some((env_or("JAKIDE_LSP_PHP", "intelephense"), vec!["--stdio"])),
-        _ => None,
+        "python" => ("JAKIDE_LSP_PYTHON", "JAKIDE_LSP_PYTHON_MODULE", "pyright-langserver", &["--stdio"]),
+        "go" => ("JAKIDE_LSP_GO", "JAKIDE_LSP_GO_MODULE", "gopls", &[]),
+        "php" => ("JAKIDE_LSP_PHP", "JAKIDE_LSP_PHP_MODULE", "intelephense", &["--stdio"]),
+        _ => return None,
+    };
+    let str_args = || args.iter().map(|s| (*s).to_string()).collect::<Vec<_>>();
+
+    // 1. Explicit binary override.
+    if let Some(bin) = var(bin_key) {
+        return Some(ServerCmd { prog: bin, args: str_args(), as_node: false });
     }
+    // 2. Bundled JS module run via the app's Node runtime (packaged app).
+    if let (Some(rt), Some(module)) = (var("JAKIDE_LSP_NODE"), var(module_key)) {
+        let mut a = vec![module];
+        a.extend(str_args());
+        return Some(ServerCmd { prog: rt, args: a, as_node: true });
+    }
+    // 3. Bare program name resolved on PATH (dev).
+    Some(ServerCmd { prog: default_prog.to_string(), args: str_args(), as_node: false })
 }
 
 async fn session(mut socket: WebSocket, st: Arc<AppState>, lang: String) {
-    let Some((prog, args)) = server_for(&lang) else {
+    let Some(cmd) = server_for(&lang) else {
         let _ = socket.send(Message::Close(None)).await;
         return;
     };
-    let mut child = match Command::new(&prog)
-        .args(&args)
+    let mut command = Command::new(&cmd.prog);
+    command
+        .args(&cmd.args)
         .current_dir(&st.root())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .kill_on_drop(true)
-        .spawn()
-    {
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    if cmd.as_node {
+        // Make the bundled Electron binary behave like Node for the server entry.
+        command.env("ELECTRON_RUN_AS_NODE", "1");
+    }
+    let mut child = match command.spawn() {
         Ok(c) => c,
         Err(e) => {
             // Surface the spawn failure as an LSP-ish error frame, then close.
+            let prog = &cmd.prog;
             let _ = socket
                 .send(Message::Text(format!(
                     r#"{{"jsonrpc":"2.0","method":"window/logMessage","params":{{"type":1,"message":"Failed to start {prog}: {e}"}}}}"#
@@ -80,6 +113,17 @@ async fn session(mut socket: WebSocket, st: Arc<AppState>, lang: String) {
 
     let mut stdin = child.stdin.take().expect("piped stdin");
     let stdout = child.stdout.take().expect("piped stdout");
+    // Forward the server's stderr to our own logs, line by line, so diagnostics from
+    // intelephense/pyright/etc. are visible (was previously discarded).
+    if let Some(stderr) = child.stderr.take() {
+        let lang = lang.clone();
+        tokio::spawn(async move {
+            let mut lines = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                eprintln!("[lsp:{lang}] {line}");
+            }
+        });
+    }
     let (out_tx, mut out_rx) = mpsc::channel::<Message>(256);
     tokio::spawn(read_server(stdout, out_tx));
 

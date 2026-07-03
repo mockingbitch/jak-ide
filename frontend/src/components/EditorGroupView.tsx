@@ -3,7 +3,7 @@ import { TabBar } from './TabBar';
 import { FileEditorTab } from './tabs/FileEditorTab';
 import { GitDiffTab } from './tabs/GitDiffTab';
 import { HistoryTab } from './tabs/HistoryTab';
-import { MergeEditor } from './MergeEditor';
+import { ExternalFileTab } from './tabs/ExternalFileTab';
 import type { EditorGroup, EditorTab } from '../types';
 
 function renderBody(tab: EditorTab, groupId: string) {
@@ -14,8 +14,8 @@ function renderBody(tab: EditorTab, groupId: string) {
       return <GitDiffTab tab={tab} groupId={groupId} />;
     case 'history':
       return <HistoryTab tab={tab} groupId={groupId} />;
-    case 'merge':
-      return <MergeEditor tab={tab} groupId={groupId} />;
+    case 'external':
+      return <ExternalFileTab tab={tab} groupId={groupId} />;
   }
 }
 

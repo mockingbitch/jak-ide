@@ -99,6 +99,10 @@ export const replaceInFiles = (
 
 export const getFile = (path: string): Promise<{ content: string; path: string }> =>
   fetch('/api/files/file?path=' + encodeURIComponent(path)).then(jsonOrThrow);
+// Read-only fetch of a file OUTSIDE the project root (a go-to-definition target in a
+// dependency / language-server stub). `absPath` must be absolute.
+export const getExternalFile = (absPath: string): Promise<{ content: string; path: string }> =>
+  fetch('/api/files/external?path=' + encodeURIComponent(absPath)).then(jsonOrThrow);
 
 export interface SymbolItem {
   name: string;
@@ -198,7 +202,8 @@ export const gitMerge = (name: string): Promise<{ ok: boolean; output: string }>
   POST('/api/git/merge', { name }).then(jsonOrThrow);
 
 export const gitFetch = (): Promise<{ ok: boolean; output: string }> => POST('/api/git/fetch', {}).then(jsonOrThrow);
-export const gitPull = (): Promise<{ ok: boolean; output: string }> => POST('/api/git/pull', {}).then(jsonOrThrow);
+export const gitPull = (opts: { remote?: string; branch?: string; rebase?: boolean } = {}): Promise<{ ok: boolean; output: string }> =>
+  POST('/api/git/pull', opts).then(jsonOrThrow);
 export const gitPush = (setUpstream = false): Promise<{ ok: boolean; output: string }> =>
   POST('/api/git/push', { setUpstream }).then(jsonOrThrow);
 

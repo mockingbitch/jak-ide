@@ -19,6 +19,7 @@ import { StatusBar } from './components/StatusBar';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SearchModal, type SearchTab } from './components/SearchModal';
 import { GoToSymbol } from './components/GoToSymbol';
+import { MergeModal } from './components/MergeModal';
 import { ProjectMenu } from './components/ProjectMenu';
 import { GitPanel } from './components/GitPanel';
 import { MainMenu } from './components/MainMenu';
@@ -53,6 +54,9 @@ export default function App() {
   const groups = useStore((s) => s.groups);
   const activeGroupId = useStore((s) => s.activeGroupId);
   const resizeGroup = useStore((s) => s.resizeGroup);
+  // Number of changed files, shown as a badge on the Version Control activity button.
+  const gitChanged = useStore((s) => s.git.changed);
+  const mergeModal = useStore((s) => s.mergeModal);
 
   const problemCount = useAllProblems().length;
 
@@ -176,9 +180,10 @@ export default function App() {
             <IconSearch size={18} />
           </ActivityButton>
           <ActivityButton
-            label="Version Control"
+            label={`Version Control${gitChanged > 0 ? ` — ${gitChanged} changed file${gitChanged === 1 ? '' : 's'}` : ''}`}
             active={layout.leftOpen && layout.leftView === 'git'}
             onClick={() => selectLeftView('git')}
+            badge={gitChanged}
           >
             <IconBranch size={18} />
           </ActivityButton>
@@ -314,6 +319,7 @@ export default function App() {
         />
       )}
       {symbolOpen && <GoToSymbol onClose={() => setSymbolOpen(false)} />}
+      {mergeModal && <MergeModal session={mergeModal} />}
       {folderPickerOpen && (
         <FolderPicker
           onClose={closeFolderPicker}
@@ -331,11 +337,13 @@ function ActivityButton({
   active,
   onClick,
   children,
+  badge,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  badge?: number;
 }) {
   return (
     <button
@@ -346,6 +354,7 @@ function ActivityButton({
       aria-pressed={active}
     >
       {children}
+      {badge != null && badge > 0 && <span className="activity-badge">{badge > 99 ? '99+' : badge}</span>}
     </button>
   );
 }

@@ -10,13 +10,13 @@ import {
   gitResolve,
   gitConflict,
   gitFetch,
-  gitPull,
   gitPush,
 } from '../api';
 import type { GitStatus, GitCommit, GitFileEntry } from '../types';
 import { FileIcon } from './FileIcon';
 import { CloneDialog } from './CloneDialog';
 import { BranchMenu } from './BranchMenu';
+import { PullDialog } from './PullDialog';
 import { IconBranch, IconRefresh, IconArrowUp, IconArrowDown, IconTrash, IconChevronDown, IconCheck } from './icons';
 
 const dirOf = (p: string) => {
@@ -113,7 +113,7 @@ export function GitPanel() {
   const setGit = useStore((s) => s.setGit);
   const setGitFiles = useStore((s) => s.setGitFiles);
   const openGitDiff = useStore((s) => s.openGitDiff);
-  const openMergeView = useStore((s) => s.openMergeView);
+  const openMergeModal = useStore((s) => s.openMergeModal);
   const gitRefreshSeq = useStore((s) => s.gitRefreshSeq);
 
   const [status, setStatus] = useState<GitStatus | null>(null);
@@ -124,6 +124,7 @@ export function GitPanel() {
   const [error, setError] = useState<string | null>(null);
   const [branchMenu, setBranchMenu] = useState(false);
   const [cloning, setCloning] = useState(false);
+  const [pullOpen, setPullOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const prevPaths = useRef<Set<string>>(new Set());
 
@@ -179,7 +180,7 @@ export function GitPanel() {
   };
   const openMerge = async (p: string) => {
     try {
-      openMergeView(await gitConflict(p));
+      openMergeModal(await gitConflict(p));
     } catch (e) {
       setError((e as Error).message);
     }
@@ -329,7 +330,7 @@ export function GitPanel() {
           <button className="icon-btn" title="Fetch" disabled={busy} onClick={() => act(gitFetch)}>
             <IconRefresh size={15} />
           </button>
-          <button className="icon-btn" title="Pull" disabled={busy} onClick={() => act(gitPull)}>
+          <button className="icon-btn" title="Pull…" disabled={busy} onClick={() => setPullOpen(true)}>
             <IconArrowDown size={15} />
           </button>
           <button
@@ -348,6 +349,9 @@ export function GitPanel() {
               <BranchMenu onClose={() => setBranchMenu(false)} />
             </div>
           </>
+        )}
+        {pullOpen && (
+          <PullDialog current={status?.branch ?? null} onClose={() => setPullOpen(false)} onDone={refresh} />
         )}
       </div>
 

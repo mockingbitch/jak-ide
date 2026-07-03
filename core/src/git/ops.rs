@@ -563,8 +563,19 @@ pub async fn fetch(cwd: &Path) -> Result<String, GitError> {
     git(cwd, &["fetch", "--all", "--prune"]).await
 }
 
-pub async fn pull(cwd: &Path) -> Result<String, GitError> {
-    git(cwd, &["pull", "--no-edit"]).await
+pub async fn pull(cwd: &Path, remote: Option<&str>, branch: Option<&str>, rebase: bool) -> Result<String, GitError> {
+    let mut args: Vec<&str> = vec!["pull", "--no-edit"];
+    if rebase {
+        args.push("--rebase");
+    }
+    // `git pull [<remote> [<branch>]]` — a branch is only meaningful with a remote.
+    if let Some(r) = remote {
+        args.push(r);
+        if let Some(b) = branch {
+            args.push(b);
+        }
+    }
+    git(cwd, &args).await
 }
 
 pub async fn push(cwd: &Path, set_upstream: bool) -> Result<String, GitError> {

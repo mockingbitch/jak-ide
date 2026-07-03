@@ -545,6 +545,22 @@
   color: var(--fg-dim);
   font-size: 11px;
 }
+/* +/- line stat (per-file card and the changed-files header total) */
+.chg-stat {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.chg-add {
+  color: var(--run-green, #3fb950);
+}
+.chg-del {
+  color: var(--danger);
+}
 
 .chat-changes {
   flex: 0 0 auto;
@@ -559,9 +575,47 @@
   align-items: center;
   color: var(--fg-dim);
 }
+.chat-changes-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
 .chat-changes-actions {
   display: flex;
   gap: 10px;
+}
+/* "Editing…" indicator shown in the header while the AI is still streaming edits
+   (replaces Keep all / Revert all until the turn finishes). */
+.chat-changes-editing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-size: 11.5px;
+}
+.chat-changes-spin {
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: jak-spin 0.7s linear infinite;
+}
+@keyframes jak-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* The live list of edited files — capped height so a big edit set scrolls
+   instead of pushing the composer off-screen. */
+.chat-changes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  max-height: 30vh;
+  overflow-y: auto;
 }
 .chat-link {
   background: none;
@@ -575,6 +629,69 @@
 }
 .chat-link:hover {
   text-decoration: underline;
+}
+
+/* ---- prompt queue (prompts submitted while a reply is streaming) ---- */
+.chat-queue {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  padding: 6px 10px;
+  background: var(--bg-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 26vh;
+  overflow-y: auto;
+}
+.chat-queue-head {
+  color: var(--fg-dim);
+  font-size: 11px;
+  font-weight: 600;
+}
+.chat-queue-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 7px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-left: 2px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.chat-queue-num {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+}
+.chat-queue-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+}
+.chat-queue-x {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  background: none;
+  border: none;
+  padding: 2px;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.chat-queue-x:hover {
+  color: var(--fg);
 }
 
 /* ---- composer (Cursor-style unified card) ---- */

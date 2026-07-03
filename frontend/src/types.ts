@@ -49,9 +49,10 @@ export interface OpenFile {
   dirty: boolean;
 }
 
-// ---- Editor tabs (generalized: a file, or a git diff/history/merge view) ----
+// ---- Editor tabs (generalized: a file, or a git diff/history/external view) ----
 // Blame is no longer a tab — it renders inline in the editor (see useGitAnnotate).
-export type TabKind = 'file' | 'diff' | 'history' | 'merge';
+// Conflict resolution is a modal (MergeModal), not a tab — see MergeSession.
+export type TabKind = 'file' | 'diff' | 'history' | 'external';
 
 interface TabBase {
   readonly id: string; // stable identity; file tabs use their path, aux tabs use `${kind}:${path}`
@@ -72,18 +73,26 @@ export interface HistoryTab extends TabBase {
   kind: 'history';
   commits: GitCommit[];
 }
-export interface MergeData {
+/** A read-only view of a file OUTSIDE the project root — a go-to-definition target
+ *  in a dependency or language-server stub. `path` is the absolute path; `reveal` is
+ *  a 1-based (line, col) that re-triggers navigation each time it's a new object. */
+export interface ExternalTab extends TabBase {
+  kind: 'external';
+  content: string;
+  reveal: { line: number; col: number };
+}
+export type EditorTab = FileTab | DiffTab | HistoryTab | ExternalTab;
+
+/** A live 3-way merge (conflict resolution) session, shown in the MergeModal.
+ *  `result` is the editable merged output (starts as the working file, with the
+ *  git conflict markers). */
+export interface MergeSession {
+  path: string;
   base: string;
   ours: string;
   theirs: string;
-  working: string;
+  result: string;
 }
-export interface MergeTab extends TabBase {
-  kind: 'merge';
-  merge: MergeData;
-  result: string; // editable 3-way merge result, survives tab switches
-}
-export type EditorTab = FileTab | DiffTab | HistoryTab | MergeTab;
 
 /** One editor group (column) in the split layout. */
 export interface EditorGroup {

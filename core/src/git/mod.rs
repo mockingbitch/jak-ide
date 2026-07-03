@@ -352,8 +352,18 @@ async fn fetch(State(st): State<Arc<AppState>>) -> ApiResult<Json<Value>> {
     Ok(Json(json!({ "ok": true, "output": out })))
 }
 
-async fn pull(State(st): State<Arc<AppState>>) -> ApiResult<Json<Value>> {
-    let out = ops::pull(&st.root()).await?;
+#[derive(Deserialize, Default)]
+struct PullBody {
+    remote: Option<String>,
+    branch: Option<String>,
+    rebase: Option<bool>,
+}
+
+async fn pull(State(st): State<Arc<AppState>>, body: Option<Json<PullBody>>) -> ApiResult<Json<Value>> {
+    let b = body.map(|Json(b)| b).unwrap_or_default();
+    let remote = b.remote.as_deref().filter(|s| !s.is_empty());
+    let branch = b.branch.as_deref().filter(|s| !s.is_empty());
+    let out = ops::pull(&st.root(), remote, branch, b.rebase.unwrap_or(false)).await?;
     Ok(Json(json!({ "ok": true, "output": out })))
 }
 

@@ -103,8 +103,21 @@ export function registerLspProviders(
     },
   });
 
-  // Map LSP Location(s)/LocationLink(s) → Monaco locations, keeping only same-project
-  // targets. Monaco navigates to these via the editor opener registered in useLsp.
+  // file:///abs/path → /abs/path (percent-decoded), or '' if not a file URI.
+  const fileUriToPath = (uri: string): string => {
+    if (!uri.startsWith('file://')) return '';
+    const raw = uri.replace(/^file:\/\//, '');
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  };
+
+  // Map LSP Location(s)/LocationLink(s) → Monaco locations. In-project targets use a
+  // relative-path URI (matches open tabs); out-of-project targets (stdlib stubs, deps
+  // outside the repo) use an absolute file:// URI that the editor opener (useLsp)
+  // loads read-only. Monaco navigates to both via that opener.
   const toLocations = (res: LspLocation | LspLocation[] | null): languages.Location[] => {
     if (!res) return [];
     const locs = Array.isArray(res) ? res : [res];
@@ -113,8 +126,13 @@ export function registerLspProviders(
     for (const l of locs) {
       const uri = l.uri ?? l.targetUri;
       const range = l.range ?? l.targetSelectionRange ?? l.targetRange;
-      if (!uri || !range || !uri.startsWith(prefix)) continue;
-      out.push({ uri: monaco.Uri.parse(uri.slice(prefix.length)), range: toMonacoRange(range) });
+      if (!uri || !range) continue;
+      if (uri.startsWith(prefix)) {
+        out.push({ uri: monaco.Uri.parse(uri.slice(prefix.length)), range: toMonacoRange(range) });
+      } else {
+        const abs = fileUriToPath(uri);
+        if (abs) out.push({ uri: monaco.Uri.file(abs), range: toMonacoRange(range) });
+      }
     }
     return out;
   };

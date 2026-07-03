@@ -4,7 +4,15 @@ const fs = require('node:fs');
 const net = require('node:net');
 const http = require('node:http');
 const { spawn } = require('node:child_process');
-const updater = require('./updater');
+// Auto-update is non-essential — never let a missing/broken updater module (e.g. an
+// omission from the electron-builder `files` list) crash the whole app at startup.
+let updater;
+try {
+  updater = require('./updater');
+} catch (e) {
+  console.error('[jakide] auto-updater unavailable:', (e && e.message) || e);
+  updater = { checkOnStartup() {}, checkNow() {} };
+}
 
 const DEV_URL = process.env.JAKIDE_DEV_URL || '';
 const isDev = Boolean(DEV_URL);
@@ -51,6 +59,35 @@ function defaultProjectRoot() {
 // that the core reverse-proxies to. In dev these run separately (see dev-core.mjs).
 // ---------------------------------------------------------------------------
 let coreProc = null;
+
+// Locate a bundled language server's entry script via its package `bin` field.
+function resolveLspModule(pkg, binName) {
+  try {
+    const pkgJson = require.resolve(path.join(pkg, 'package.json'), { paths: [__dirname] });
+    const bin = require(pkgJson).bin;
+    const rel = typeof bin === 'string' ? bin : bin && bin[binName];
+    return rel ? path.join(path.dirname(pkgJson), rel) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Tell the core how to launch the LSP servers. electron-builder does NOT recreate
+// node_modules/.bin symlinks, so a bare-name PATH lookup of intelephense/pyright/…
+// fails in the packaged app. Instead we pass this app's own runtime (Electron, run
+// as Node) plus the absolute path to each bundled server entry, and the core spawns
+// `<runtime> <module> --stdio` with ELECTRON_RUN_AS_NODE. (gopls is a native binary,
+// left to PATH.)
+function lspServerEnv() {
+  const modules = {
+    JAKIDE_LSP_PHP_MODULE: resolveLspModule('intelephense', 'intelephense'),
+    JAKIDE_LSP_TYPESCRIPT_MODULE: resolveLspModule('typescript-language-server', 'typescript-language-server'),
+    JAKIDE_LSP_PYTHON_MODULE: resolveLspModule('pyright', 'pyright-langserver'),
+  };
+  const env = { JAKIDE_LSP_NODE: process.execPath };
+  for (const [key, value] of Object.entries(modules)) if (value) env[key] = value;
+  return env;
+}
 
 function findFreePort() {
   return new Promise((resolve, reject) => {
@@ -121,6 +158,7 @@ async function startBackends() {
     env: {
       ...process.env,
       PATH: corePath,
+      ...lspServerEnv(),
       JAKIDE_CORE_PORT: String(corePort),
       JAKIDE_NODE_PORT: String(nodePort),
       JAKIDE_DESKTOP: '1',

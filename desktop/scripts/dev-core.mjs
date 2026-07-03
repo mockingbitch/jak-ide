@@ -5,9 +5,11 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { resolveCargo } from './resolve-cargo.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
 const repoRoot = path.resolve(here, '..', '..');
 const backendDir = path.join(repoRoot, 'backend');
 const coreDir = path.join(repoRoot, 'core');
@@ -40,6 +42,28 @@ const lspBinDirs = [
   path.join(here, '..', 'node_modules', '.bin'),
 ].filter((d) => fs.existsSync(d));
 env.PATH = [...lspBinDirs, process.env.PATH || ''].join(path.delimiter);
+
+// Also resolve the bundled server entries by absolute path and run them via Node —
+// the same mechanism the packaged app uses (main.js), so dev matches prod and does
+// not depend on the .bin symlinks. gopls is native, left to PATH.
+const desktopDir = path.join(here, '..');
+const resolveLspModule = (pkg, binName) => {
+  try {
+    const pkgJson = require.resolve(path.join(pkg, 'package.json'), { paths: [desktopDir] });
+    const bin = require(pkgJson).bin;
+    const rel = typeof bin === 'string' ? bin : bin && bin[binName];
+    return rel ? path.join(path.dirname(pkgJson), rel) : null;
+  } catch {
+    return null;
+  }
+};
+const lspModules = {
+  JAKIDE_LSP_PHP_MODULE: resolveLspModule('intelephense', 'intelephense'),
+  JAKIDE_LSP_TYPESCRIPT_MODULE: resolveLspModule('typescript-language-server', 'typescript-language-server'),
+  JAKIDE_LSP_PYTHON_MODULE: resolveLspModule('pyright', 'pyright-langserver'),
+};
+env.JAKIDE_LSP_NODE = process.execPath;
+for (const [key, value] of Object.entries(lspModules)) if (value) env[key] = value;
 
 const debugBin = path.join(coreDir, 'target', 'debug', 'jakide-core');
 const useBin = fs.existsSync(debugBin);
