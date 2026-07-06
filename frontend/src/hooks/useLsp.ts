@@ -6,19 +6,22 @@ import { useStore } from '../store';
 import { createLspClient, type LspClient } from '../lib/lsp/client';
 import { registerLspProviders } from '../lib/lsp/providers';
 import { setLspBridge } from '../lib/lsp/bridge';
+import { registerPhpDefinitionProvider } from '../lib/codeIntel/definitionProvider';
+import { useNavHistoryStore } from '../lib/navHistoryStore';
 import { openFileAndReveal, openExternalAndReveal } from '../lib/openFileAt';
 import { clientLang, diagnosticToMarker, lspLanguageId, type LspDiagnostic } from '../lib/lsp/protocol';
+import { EXTERNAL_SCHEME, isInProjectModel, relPathOf } from '../lib/lsp/modelUri';
 
 const CHANGE_DEBOUNCE = 300;
-// Monaco language ids per server family, for provider registration.
-const LANG_CONFIGS: ReadonlyArray<{ id: string; monaco: string[] }> = [
+// Monaco language ids per server family, for provider registration. Families with
+// `nativeDefinition` get their definition provider from the native (Rust) index —
+// which merges the LSP leg itself — instead of the plain LSP definition provider.
+const LANG_CONFIGS: ReadonlyArray<{ id: string; monaco: string[]; nativeDefinition?: boolean }> = [
   { id: 'typescript', monaco: ['typescript', 'javascript'] },
-  { id: 'php', monaco: ['php'] },
+  { id: 'php', monaco: ['php'], nativeDefinition: true },
   { id: 'python', monaco: ['python'] },
   { id: 'go', monaco: ['go'] },
 ];
-
-const relPathOf = (model: editor.ITextModel) => model.uri.path.replace(/^\/+/, '');
 
 /** Wire source models to per-language LSP servers (via the /ws/lsp bridge) for live
  *  diagnostics + completion/hover/definition. One client per language family, created
@@ -51,9 +54,9 @@ export function useLsp(): void {
 
     const attach = (model: editor.ITextModel) => {
       if (model.isDisposed()) return;
-      // Only track in-project file models (relative path, empty URI scheme). Skip
-      // external read-only tabs (`ext:` scheme) and other aux models.
-      if (model.uri.scheme) return;
+      // Only track in-project editable file models. Skip external read-only tabs
+      // (`ext:`) and diff/aux (`inmemory`) models. See lib/lsp/modelUri.
+      if (!isInProjectModel(model)) return;
       const path = relPathOf(model);
       const langId = clientLang(path);
       const key = model.uri.toString();
@@ -87,13 +90,34 @@ export function useLsp(): void {
     // is created lazily the first time it's needed.
     const isTracked = (model: editor.ITextModel) => perModel.has(model.uri.toString());
     const providers = LANG_CONFIGS.flatMap((cfg) =>
-      registerLspProviders(monaco, cfg.monaco, () => getClient(cfg.id), rootUri, lspUri, isTracked)
+      registerLspProviders(monaco, cfg.monaco, () => getClient(cfg.id), rootUri, lspUri, isTracked, {
+        skipDefinition: cfg.nativeDefinition,
+      })
     );
+    // Native go-to-definition (PHP). Registered unconditionally — it works off the
+    // Rust index even when no LSP server is installed for the family.
+    for (const cfg of LANG_CONFIGS) {
+      if (cfg.nativeDefinition) providers.push(registerPhpDefinitionProvider(monaco, { languages: cfg.monaco }));
+    }
+
+    // Record the jump origin (in-project or `ext:` external model only) so
+    // Ctrl/Cmd+Alt+Left can navigate back after a go-to-definition jump.
+    const pushOrigin = (source: editor.ICodeEditor) => {
+      const model = source.getModel();
+      const pos = source.getPosition();
+      if (!model || !pos) return;
+      const { push } = useNavHistoryStore.getState();
+      if (isInProjectModel(model)) {
+        push({ path: relPathOf(model), external: false, line: pos.lineNumber, column: pos.column });
+      } else if (model.uri.scheme === EXTERNAL_SCHEME) {
+        push({ path: model.uri.path, external: true, line: pos.lineNumber, column: pos.column });
+      }
+    };
 
     // Cross-file navigation: when go-to-definition/implementation/references targets a
     // resource that isn't the current model, open it as a tab and reveal the position.
     const opener = monaco.editor.registerEditorOpener({
-      openCodeEditor(_source, resource, selectionOrPosition) {
+      openCodeEditor(source, resource, selectionOrPosition) {
         let line: number | undefined;
         let col = 1;
         if (selectionOrPosition) {
@@ -105,13 +129,18 @@ export function useLsp(): void {
             col = selectionOrPosition.column;
           }
         }
-        // Out-of-project target (stdlib stub / external dependency) → read-only tab.
-        if (resource.scheme === 'file') {
+        // Out-of-project target (stdlib stub / external dependency) → read-only
+        // tab. External targets carry the `ext:` scheme; in-project targets parse
+        // to scheme `file` (monaco coerces the scheme-less relative path), so we
+        // key on `ext` — NOT `file` — to tell them apart.
+        if (resource.scheme === EXTERNAL_SCHEME) {
+          pushOrigin(source);
           openExternalAndReveal(resource.path, line ?? 1, col).catch(() => {});
           return true;
         }
         const rel = resource.path.replace(/^\/+/, '');
         if (!rel) return false;
+        pushOrigin(source);
         openFileAndReveal(monaco, rel, line, col).catch(() => {});
         return true;
       },

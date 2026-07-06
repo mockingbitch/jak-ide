@@ -117,6 +117,33 @@ export interface SymbolItem {
 export const getSymbols = (path: string, content: string): Promise<{ symbols: SymbolItem[] }> =>
   POST('/api/symbols', { path, content }).then(jsonOrThrow);
 
+// ---- Native code intelligence (Rust PHP indexer) ----
+export interface IntelLocation {
+  /** Project-relative posix path when external === false; absolute path otherwise. */
+  path: string;
+  external: boolean;
+  line: number; // 1-based
+  column: number; // 1-based, UTF-16 code units
+  name: string;
+  kind: string; // 'class' | 'interface' | 'trait' | 'enum' | 'function'
+  /** Trimmed declaration line text. */
+  preview: string;
+  confidence: number; // 0..1
+}
+// Go to definition via the native index. `content` is the live buffer; `line`/`column`
+// are 1-based Monaco coordinates (UTF-16 columns), passed through as-is.
+export const intelDefinition = (path: string, content: string, line: number, column: number): Promise<{ locations: IntelLocation[] }> =>
+  POST('/api/intel/definition', { path, content, line, column }).then(jsonOrThrow);
+
+export interface IntelStatus {
+  root: string;
+  indexing: boolean;
+  files: number;
+  symbols: number;
+  lastIndexMs: number | null;
+}
+export const intelStatus = (): Promise<IntelStatus> => fetch('/api/intel/status').then(jsonOrThrow);
+
 export const saveFile = (path: string, content: string) =>
   POST('/api/files/file/save', { path, content }).then(jsonOrThrow);
 

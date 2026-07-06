@@ -200,16 +200,31 @@ export function GitPanel() {
       return n;
     });
 
+  // The checked files (plus rename origins), in the shape gitCommitFiles expects.
+  const selectedPaths = () => {
+    const paths: string[] = [];
+    for (const f of status?.files ?? [])
+      if (selected.has(f.path)) {
+        paths.push(f.path);
+        if (f.orig) paths.push(f.orig);
+      }
+    return paths;
+  };
+
   const commit = () =>
     act(async () => {
-      const paths: string[] = [];
-      for (const f of status?.files ?? [])
-        if (selected.has(f.path)) {
-          paths.push(f.path);
-          if (f.orig) paths.push(f.orig);
-        }
-      await gitCommitFiles(message.trim(), paths);
+      await gitCommitFiles(message.trim(), selectedPaths());
       setMessage('');
+    });
+
+  // Commit, then push in the same action. A push failure still surfaces via `act`
+  // but the commit is already made (matching PhpStorm's "Commit and Push"). Publishes
+  // the branch (sets upstream) when it has none yet, like the toolbar Push button.
+  const commitAndPush = () =>
+    act(async () => {
+      await gitCommitFiles(message.trim(), selectedPaths());
+      setMessage('');
+      await gitPush(status?.upstream == null);
     });
 
   const graph = useMemo(() => computeGraph(commits), [commits]);
@@ -249,6 +264,9 @@ export function GitPanel() {
   const changes = files.filter((f) => !f.conflicted && f.index !== '?');
   const untracked = files.filter((f) => f.index === '?');
   const selectedCount = [...changes, ...untracked].filter((f) => selected.has(f.path)).length;
+  // Commit (and Commit & Push) are enabled only with a message, a selection, no
+  // in-flight action, and no unresolved conflicts.
+  const canCommit = !busy && !!message.trim() && selectedCount > 0 && conflicts.length === 0;
 
   const FileRow = ({ f }: { f: GitFileEntry }) => {
     const s = statusOf(f);
@@ -428,26 +446,30 @@ export function GitPanel() {
           <div className="git-commit">
             <textarea
               value={message}
-              placeholder="Commit message  (Ctrl/Cmd+Enter)"
+              placeholder="Commit message  (Ctrl/Cmd+Enter · +Shift to push)"
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => {
-                if (
-                  e.key === 'Enter' &&
-                  (e.metaKey || e.ctrlKey) &&
-                  !(busy || !message.trim() || selectedCount === 0 || conflicts.length > 0)
-                )
-                  commit();
+                if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey) || !canCommit) return;
+                e.preventDefault();
+                if (e.shiftKey) commitAndPush();
+                else commit();
               }}
             />
             <div className="git-commit-actions">
               <span className="muted">{selectedCount} selected</span>
-              <button
-                className="primary"
-                disabled={busy || !message.trim() || selectedCount === 0 || conflicts.length > 0}
-                onClick={commit}
-              >
-                Commit
-              </button>
+              <div className="git-commit-btns">
+                <button className="primary" disabled={!canCommit} onClick={commit}>
+                  Commit
+                </button>
+                <button
+                  className="git-commit-push"
+                  title={status?.upstream == null ? 'Commit, then publish this branch' : 'Commit, then push to upstream'}
+                  disabled={!canCommit}
+                  onClick={commitAndPush}
+                >
+                  <IconArrowUp size={13} /> Commit &amp; Push
+                </button>
+              </div>
             </div>
             {conflicts.length > 0 && <div className="git-hint">Resolve conflicts before committing.</div>}
           </div>

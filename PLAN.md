@@ -176,6 +176,42 @@ Kế hoạch chi tiết 22 unit (U1–U22) — xem workflow `phase34-understand`
   **Go (gopls)**: đã wire (`server_for` + provider), chỉ chờ cài Go toolchain + `gopls` — bridge đóng WS
   graceful khi thiếu server.
 - ⛔ **Còn chặn**: gopls (cần Go toolchain) · U22 DAP (Phase 4, thiếu adapter).
+### Merge conflict editor (PhpStorm-style 3-way) — U24
+- ✅ **3-way merge editor** — nâng cấp `MergeModal` cũ thành `components/merge/MergeConflictView`: 3(+Base) pane
+  Ours │ (Base) │ Result(editable) │ Theirs, **align bằng Monaco view zones** (spacer ảo, không đụng nội dung),
+  scroll đồng bộ, decorations màu ours/theirs/base/marker + ring conflict hiện tại, minimap markers, glyph-margin
+  →/← accept, context-menu, counter "Conflict i of N · resolved/total". Engine thuần TS (test được, không IPC mỗi
+  keystroke): `lib/merge/{mergeTypes,mergeAlignment,mergeActions}.ts` — parse marker (2-way + diff3 `|||||||` có
+  hash), **reconstruct pane từ marker** (không cần cross-file diff → align chuẩn theo cấu trúc), accept ours/theirs/
+  both/both-reverse/base + line-level (tái dùng `lineMerge`/`ConflictLineResolver`), mark-resolved (strip markers).
+  Accept áp qua `executeEdits` + `applyResolution` (splice whole-line → undo/redo/dirty miễn phí, không để dòng
+  trống thừa khi 1 phía rỗng). Shortcut layer (`useMergeShortcuts`, capture-phase, không phá global): F7/Shift+F7,
+  Alt+O/T/B/R, Esc→focus result (bubble để Monaco đóng find), Ctrl/Cmd+S save. Save validate bằng chính parser
+  (`hasUnresolvedConflicts` = unresolvedCount>0, không false-positive trên `=======` heading). Toast mới
+  (`lib/toastStore` + `Toasts`) cho save success/error. Không đổi backend (`gitConflict` stage :1/:2/:3 +
+  `saveFile`+`gitStage` đủ). 30 vitest merge (align/action/shortcut/nav, gồm marker git thật + diff3 + edge cases);
+  review đa-agent đối kháng → sửa 4 lỗi thật (save-guard false-positive, stray blank line phía rỗng, base pane
+  mount async, decoration cache stale sau toggle). **Giới hạn MVP:** pane hiển thị reconstruct-from-marker (không
+  phải full-file :2/:3 diff); Base pane cần diff3 conflict style (toggle disable nếu không có).
+
+### Code intelligence (native, PhpStorm-style)
+- ✅ **U23 PHP go-to-definition Phase 1** — module Rust `core/src/code_intelligence/` (parser/refs/composer/
+  symbol_index/resolver/navigation, mỗi file ≤500 LOC): tree-sitter-php parse thật (không regex), index
+  in-memory FQN→declaration (class/interface/trait/enum/function, generation-token như FileIndex, watcher
+  update incremental theo path — watch.rs giờ carry paths + content-edit chỉ feed symbol index, KHÔNG
+  rebuild FileIndex), resolver theo luật PHP (use/alias/group-use case-insensitive, same-namespace, FQ `\X`,
+  function fallback global, confidence 0.4–1.0), **vendor KHÔNG index**: resolve qua PSR-4 path-computation
+  (composer.json + `vendor/composer/autoload_psr4.php`) rồi parse-on-demand + cache. API `POST /api/intel/
+  definition|symbol-at|index|reindex-file`, `GET /api/intel/status` (body {path,content,line,column} 1-based
+  UTF-16 như /api/symbols). Frontend: **một** definition provider cho PHP (`lib/codeIntel/definitionProvider.ts`)
+  merge native + intelephense qua LSP bridge (dedupe theo uri+line, native trước — tránh duplicate peek,
+  không regression method/property khi chưa có Phase 2); LSP definition provider skip php (`nativeDefinition`
+  flag), completion/hover/implementation giữ nguyên. **Navigation history mới**: `lib/navHistoryStore.ts`
+  (back/forward stack cap 50) + `hooks/useNavHistory.ts` (Ctrl/Cmd+Alt+←/→), push origin trong editor opener.
+  `.phtml` thêm vào `langFor`. 90 cargo (+39: parser/refs/composer/index/resolver/navigation với fixture
+  Laravel giả trong tempdir) + 142 vitest (+15). Live-verified (HTTP): imported/vendor/use-clause/return-type
+  resolve đúng file:line:col + preview, watcher index file mới ~5ms. Roadmap: Phase 2 method/property/const ·
+  3 biến local · 4 implementations/trait usage · 5 PHPDoc/references/rename.
 
 ---
 

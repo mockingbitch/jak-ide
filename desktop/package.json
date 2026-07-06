@@ -4,7 +4,7 @@
   "private": true,
   "description": "JakIDE — AI-first IDE",
   "author": "PhongTran <jarvis.phongtran@gmail.com>",
-  "homepage": "https://github.com/mockingbitch/jakide",
+  "homepage": "https://github.com/mockingbitch/jak-ide",
   "license": "MIT",
   "main": "main.js",
   "desktopName": "jakide.desktop",

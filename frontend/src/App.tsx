@@ -4,6 +4,7 @@ import { getHealth, getShells, getAuthStatus, getFonts, getProjects, gitStatus }
 import { applyTheme } from './theme';
 import { useEditorChrome } from './hooks/useEditorChrome';
 import { useLsp } from './hooks/useLsp';
+import { useNavHistory } from './hooks/useNavHistory';
 import { FileExplorer } from './components/FileExplorer';
 import { FindInFiles } from './components/FindInFiles';
 import { EditorGroupView } from './components/EditorGroupView';
@@ -19,7 +20,8 @@ import { StatusBar } from './components/StatusBar';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SearchModal, type SearchTab } from './components/SearchModal';
 import { GoToSymbol } from './components/GoToSymbol';
-import { MergeModal } from './components/MergeModal';
+import { MergeConflictView } from './components/merge/MergeConflictView';
+import { Toasts } from './components/Toasts';
 import { ProjectMenu } from './components/ProjectMenu';
 import { GitPanel } from './components/GitPanel';
 import { MainMenu } from './components/MainMenu';
@@ -67,6 +69,7 @@ export default function App() {
 
   useEditorChrome();
   useLsp();
+  useNavHistory();
 
   useEffect(() => {
     applyTheme(theme);
@@ -319,7 +322,8 @@ export default function App() {
         />
       )}
       {symbolOpen && <GoToSymbol onClose={() => setSymbolOpen(false)} />}
-      {mergeModal && <MergeModal session={mergeModal} />}
+      {mergeModal && <MergeConflictView session={mergeModal} />}
+      <Toasts />
       {folderPickerOpen && (
         <FolderPicker
           onClose={closeFolderPicker}

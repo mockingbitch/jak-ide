@@ -325,6 +325,32 @@
 .git-commit-actions .primary {
   padding: 5px 16px;
 }
+.git-commit-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* "Commit & Push" — secondary emphasis next to the primary Commit button. */
+.git-commit-push {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  cursor: pointer;
+}
+.git-commit-push:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--accent);
+}
+.git-commit-push:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 
 /* ---- log / commit graph ---- */
 .git-log {

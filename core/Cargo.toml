@@ -30,6 +30,10 @@ grep-matcher = "0.1"
 regex = "1"
 # Live index updates (Stage 1b)
 notify = "6"
+# Code intelligence (PhpStorm-style go-to-definition): real parsing via tree-sitter,
+# starting with PHP; the parser abstraction adds more grammars later (TS/Go/Python).
+tree-sitter = "0.25"
+tree-sitter-php = "0.24"
 # Kill a run's whole process group (the streaming runner, U14/U15)
 libc = "0.2"
 # Database tool window: typed per-engine pools (not the `Any` driver — it can't

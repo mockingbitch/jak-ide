@@ -16,7 +16,7 @@ directories:
 publish:
   provider: github
   owner: mockingbitch
-  repo: jakide
+  repo: jak-ide
 
 files:
   - main.js

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, RwLock};
 
+use crate::code_intelligence::symbol_index::SymbolIndex;
 use crate::index::FileIndex;
 
 /// Directories never shown in the tree or walked (matches the Node IGNORE_DIRS).
@@ -22,6 +23,8 @@ pub struct AppState {
     pub has_api_key: bool,
     pub desktop: bool,
     pub index: Arc<FileIndex>,
+    /// PHP symbol index for code intelligence (go-to-definition).
+    pub intel: Arc<SymbolIndex>,
     /// Set by the fs watcher; `set_root` pushes the new root so the watcher can
     /// re-target its watches on a project switch. `None` until the watcher spawns.
     watch_tx: RwLock<Option<Sender<PathBuf>>>,
@@ -49,6 +52,7 @@ impl AppState {
             has_api_key: std::env::var("ANTHROPIC_API_KEY").map(|v| !v.is_empty()).unwrap_or(false),
             desktop: std::env::var("JAKIDE_DESKTOP").map(|v| v == "1").unwrap_or(false),
             index: Arc::new(FileIndex::open()),
+            intel: Arc::new(SymbolIndex::new()),
             watch_tx: RwLock::new(None),
             node_port: std::env::var("JAKIDE_NODE_PORT").ok().and_then(|s| s.parse().ok()).unwrap_or(8788),
             http: reqwest::Client::new(),
@@ -65,6 +69,15 @@ impl AppState {
     pub fn reindex(&self) {
         self.index.clear();
         self.refresh_index();
+        self.reindex_intel();
+    }
+
+    /// Rebuild the code-intelligence symbol index in the background (boot,
+    /// project switch, or explicit POST /api/intel/index).
+    pub fn reindex_intel(&self) {
+        let intel = self.intel.clone();
+        let root = self.root();
+        std::thread::spawn(move || intel.rebuild(&root));
     }
 
     /// Rebuild the index in place, off the request path, WITHOUT clearing first.

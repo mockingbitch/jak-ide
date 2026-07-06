@@ -277,3 +277,103 @@
   display: flex;
   min-height: 0;
 }
+
+/* ============================================================
+   Upgraded 3-way merge view (MergeConflictView)
+   ============================================================ */
+.merge-toolbar {
+  height: auto;
+  min-height: 40px;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 5px 8px 5px 12px;
+}
+.merge-toolbar .merge-count {
+  margin-left: 8px;
+}
+.merge-dirty {
+  color: var(--accent);
+  font-size: 14px;
+  line-height: 1;
+  margin-left: 2px;
+}
+.merge-toggles {
+  display: inline-flex;
+  gap: 4px;
+}
+.merge-toggles button {
+  padding: 3px 8px !important;
+  font-size: 11px !important;
+}
+.merge-col.base .merge-col-head {
+  color: #c0a35e;
+}
+
+/* conflict-region highlights (result + side panes) */
+.merge-ours {
+  background: rgba(77, 159, 255, 0.12);
+}
+.merge-theirs {
+  background: rgba(95, 184, 101, 0.12);
+}
+.merge-base {
+  background: rgba(192, 163, 94, 0.12);
+}
+.merge-marker {
+  background: rgba(128, 128, 128, 0.16);
+  opacity: 0.85;
+}
+.merge-ours.merge-cur {
+  background: rgba(77, 159, 255, 0.28);
+  box-shadow: inset 3px 0 0 #4d9fff;
+}
+.merge-theirs.merge-cur {
+  background: rgba(95, 184, 101, 0.28);
+  box-shadow: inset 3px 0 0 var(--run-green);
+}
+.merge-base.merge-cur {
+  background: rgba(192, 163, 94, 0.28);
+  box-shadow: inset 3px 0 0 #c0a35e;
+}
+.merge-marker.merge-cur {
+  background: rgba(128, 128, 128, 0.28);
+}
+
+/* gutter accept arrows: → copies ours into result, ← copies theirs */
+.merge-glyph-ours,
+.merge-glyph-theirs {
+  cursor: pointer;
+  color: var(--fg-dim);
+  font-weight: 700;
+}
+.merge-glyph-ours::after {
+  content: '→';
+}
+.merge-glyph-theirs::after {
+  content: '←';
+}
+.merge-glyph-ours:hover {
+  color: #4d9fff;
+}
+.merge-glyph-theirs:hover {
+  color: var(--run-green);
+}
+
+/* alignment spacer (Monaco view zone) */
+.merge-spacer {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 6px,
+    rgba(128, 128, 128, 0.06) 6px,
+    rgba(128, 128, 128, 0.06) 12px
+  );
+}
+
+.merge-foot-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--run-green);
+  font-weight: 600;
+}

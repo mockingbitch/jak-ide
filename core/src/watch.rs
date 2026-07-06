@@ -5,8 +5,13 @@
 //! Watches are registered per non-ignored directory (NonRecursive) rather than
 //! one recursive watch on the root, so we never add inotify watches inside
 //! node_modules / target / .git — keeping idle watch counts bounded.
+//!
+//! The same debounce loop also feeds the code-intelligence symbol index:
+//! changed PHP paths (including content edits, which the filename index
+//! deliberately ignores) are batched and re-parsed incrementally.
 
-use std::path::{Component, Path};
+use std::collections::HashSet;
+use std::path::{Component, Path, PathBuf};
 use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,10 +27,12 @@ const DEBOUNCE: Duration = Duration::from_millis(400);
 
 /// Internal events on the watcher thread's unified channel.
 enum Msg {
-    /// A relevant fs change occurred (path set changed somewhere).
-    Changed,
+    /// A relevant fs change occurred. `structural` = the file *set* changed
+    /// (create/remove/rename) → the filename index must refresh; content-only
+    /// edits carry `structural = false` and only feed the symbol index.
+    Changed { structural: bool, php_paths: Vec<PathBuf> },
     /// The project root switched; re-target watches.
-    Reroot(std::path::PathBuf),
+    Reroot(PathBuf),
 }
 
 /// Spawn the watcher. Best-effort: if the OS watcher can't be created the index
@@ -52,15 +59,21 @@ pub fn spawn(state: Arc<AppState>) {
         let mut current = state.root();
         let mut watcher = make_watcher(tx.clone(), &current);
         let mut dirty = false;
+        let mut php_changed: HashSet<PathBuf> = HashSet::new();
         loop {
             match rx.recv_timeout(DEBOUNCE) {
-                Ok(Msg::Changed) => dirty = true,
+                Ok(Msg::Changed { structural, php_paths }) => {
+                    dirty = dirty || structural;
+                    php_changed.extend(php_paths);
+                }
                 Ok(Msg::Reroot(p)) => {
                     current = p;
                     // Dropping the old watcher releases ALL its per-dir watches;
                     // a fresh one watches only the new project's tree.
                     watcher = make_watcher(tx.clone(), &current);
                     dirty = true;
+                    // The project-switch reindex rebuilds the symbol index too.
+                    php_changed.clear();
                 }
                 Err(RecvTimeoutError::Timeout) => {
                     if dirty {
@@ -70,6 +83,12 @@ pub fn spawn(state: Arc<AppState>) {
                             watch_tree(w, &current);
                         }
                         state.refresh_index();
+                    }
+                    if !php_changed.is_empty() {
+                        let paths: Vec<PathBuf> = php_changed.drain().collect();
+                        let intel = state.intel.clone();
+                        // Parsing is CPU work — keep it off the watcher thread.
+                        std::thread::spawn(move || intel.handle_fs_paths(&paths));
                     }
                 }
                 Err(RecvTimeoutError::Disconnected) => break,
@@ -84,8 +103,8 @@ fn make_watcher(tx: Sender<Msg>, root: &Path) -> Option<RecommendedWatcher> {
     let mut watcher = RecommendedWatcher::new(
         move |res: notify::Result<Event>| {
             if let Ok(ev) = res {
-                if is_relevant(&ev) {
-                    let _ = tx.send(Msg::Changed);
+                if let Some(msg) = classify(&ev) {
+                    let _ = tx.send(msg);
                 }
             }
         },
@@ -118,20 +137,42 @@ fn watch_tree(watcher: &mut RecommendedWatcher, root: &Path) {
     }
 }
 
-/// Only create/remove/rename events change the file *set* (the index is
-/// filename-only), and only outside ignored dirs. Content edits are skipped so
-/// every save doesn't trigger a needless rebuild.
-fn is_relevant(ev: &Event) -> bool {
-    let kind_ok = matches!(
+/// Classify an fs event. Create/remove/rename change the file *set* → a
+/// structural message (the filename index refreshes; PHP paths in the event
+/// also feed the symbol index). Content edits are NOT structural — every save
+/// must not rebuild the filename index — but changed PHP files still need an
+/// incremental re-parse, so they flow through as non-structural messages.
+/// Events touching ignored dirs are dropped entirely.
+fn classify(ev: &Event) -> Option<Msg> {
+    let structural = matches!(
         ev.kind,
         EventKind::Create(_) | EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(_))
     );
-    if !kind_ok {
-        return false;
+    let content_edit = matches!(ev.kind, EventKind::Modify(ModifyKind::Data(_) | ModifyKind::Any));
+    if !structural && !content_edit {
+        return None;
     }
     let ignore = ignored_dirs();
-    !ev.paths.iter().any(|p| {
+    let ignored = ev.paths.iter().any(|p| {
         p.components()
             .any(|c| matches!(c, Component::Normal(s) if ignore.contains(s.to_string_lossy().as_ref())))
-    })
+    });
+    if ignored {
+        return None;
+    }
+    let php_paths: Vec<PathBuf> = ev
+        .paths
+        .iter()
+        .filter(|p| {
+            p.extension().and_then(|e| e.to_str()).map(|e| e.eq_ignore_ascii_case("php")).unwrap_or(false)
+        })
+        .cloned()
+        .collect();
+    if structural {
+        Some(Msg::Changed { structural: true, php_paths })
+    } else if !php_paths.is_empty() {
+        Some(Msg::Changed { structural: false, php_paths })
+    } else {
+        None
+    }
 }
