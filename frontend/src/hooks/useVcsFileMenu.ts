@@ -46,6 +46,10 @@ export function useVcsFileMenu({ act, openDiff, openMerge, onError }: Deps) {
         case 'diff':
           openDiff(f);
           break;
+        case 'open':
+          // Open the actual working file (a rename opens its NEW path).
+          openFileAt(f.path).catch(() => {});
+          break;
         case 'stage':
           act(() => gitStage(paths));
           break;

@@ -425,21 +425,31 @@
   border-bottom: 1px solid var(--border);
 }
 .chat-code-lang {
+  flex: 1; /* push the action buttons to the right */
   font-size: 10.5px;
   color: var(--fg-dim);
   text-transform: lowercase;
 }
-.chat-code-copy {
+.chat-code-copy,
+.chat-code-insert {
   background: transparent;
   border: none;
   color: var(--fg-dim);
   font-size: 11px;
   padding: 2px 7px;
   border-radius: var(--radius-xs);
+  cursor: pointer;
 }
-.chat-code-copy:hover {
+.chat-code-copy:hover,
+.chat-code-insert:hover {
   color: var(--fg);
   background: var(--hover);
+}
+/* Monaco's colorize output (.mtkN spans) inherits the active editor theme; the
+   pre's editor-fg is the fallback for any un-tokenized text. */
+.chat-code-block pre code {
+  font: inherit;
+  color: inherit;
 }
 .chat-code-block pre {
   margin: 0;

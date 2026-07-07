@@ -7,6 +7,7 @@ import { classify } from './fileStatus';
 export type VcsActionId =
   // Local Changes file actions
   | 'diff'
+  | 'open'
   | 'stage'
   | 'unstage'
   | 'rollback'
@@ -36,6 +37,9 @@ export interface VcsMenuItem {
 export function fileActions(f: GitFileEntry): VcsMenuItem[] {
   const c = classify(f);
   const items: VcsMenuItem[] = [{ id: 'diff', label: 'Show Diff' }];
+  // Open the working file itself (source), not the diff. Pointless for a deleted
+  // file (it's gone from the working tree).
+  if (c.status !== 'deleted') items.push({ id: 'open', label: 'Open File' });
 
   if (c.status === 'conflicted') {
     items.push({ id: 'resolve', label: 'Resolve Conflicts…' });

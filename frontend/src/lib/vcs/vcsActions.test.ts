@@ -51,4 +51,10 @@ describe('fileActions availability', () => {
     const a = ids(f('.', 'M'));
     expect(a).toEqual(expect.arrayContaining(['diff', 'history', 'annotate', 'copyPath', 'copyRelPath']));
   });
+
+  it('offers Open File for a modified file but NOT for a deleted one', () => {
+    expect(ids(f('.', 'M'))).toContain('open');
+    expect(ids(f('D', '.'))).not.toContain('open'); // staged delete
+    expect(ids(f('.', 'D'))).not.toContain('open'); // unstaged delete
+  });
 });

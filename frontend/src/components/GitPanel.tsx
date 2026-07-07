@@ -296,7 +296,12 @@ export function GitPanel() {
     const s = statusOf(f);
     const staged = classify(f).staged;
     return (
-      <div className="git-file" onClick={() => openDiff(f)} onContextMenu={(e) => openMenu(e, f)} title={f.path}>
+      <div
+        className="git-file"
+        onClick={() => openDiff(f)}
+        onContextMenu={(e) => openMenu(e, f)}
+        title={f.orig ? `${f.orig} → ${f.path}` : f.path}
+      >
         <input
           type="checkbox"
           className="git-check"
@@ -310,7 +315,8 @@ export function GitPanel() {
         {staged && <span className="git-staged-dot" title="Staged (in index)" aria-label="Staged" />}
         <FileIcon name={baseOf(f.path)} />
         <span className="git-file-name">{baseOf(f.path)}</span>
-        <span className="git-file-dir">{dirOf(f.path)}</span>
+        {/* A rename/move shows where it came from; otherwise the containing dir. */}
+        <span className="git-file-dir">{f.orig ? `← ${f.orig}` : dirOf(f.path)}</span>
         <span className="git-file-actions" onClick={(e) => e.stopPropagation()}>
           {f.index !== '?' && (
             <button

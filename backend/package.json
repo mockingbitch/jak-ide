@@ -1,6 +1,6 @@
 {
   "name": "jakide-backend",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "JakIDE backend — file system API, command runner, Claude AI service, WebSocket terminal",

@@ -67,7 +67,7 @@ export function ChatMessageView({ m }: { m: ChatMessage }) {
       ) : null}
       <div className="chat-parts">
         {(m.parts ?? []).map((p, i) => {
-          if (p.kind === 'text') return p.text.trim() ? <ChatMarkdown key={i} text={p.text} /> : null;
+          if (p.kind === 'text') return p.text.trim() ? <ChatMarkdown key={i} text={p.text} streaming={m.streaming} /> : null;
           if (p.kind === 'change') return <ChatChangeCard key={i} path={p.path} created={p.created} />;
           return <ToolChip key={i} p={p} />;
         })}

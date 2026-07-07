@@ -8,6 +8,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 _Nothing yet._
 
+## [0.2.1] — 2026-07-07
+
+### Added
+- **Chat code blocks are syntax-highlighted** — using Monaco's own colorizer, so
+  they match the editor theme (no extra highlighter dependency). Each block also
+  gets an **Insert** button (insert the snippet into the active editor at the
+  cursor) alongside the existing Copy + language label.
+- **Open File** in the Version Control context menu — open a changed file's
+  working copy directly (vs. Show Diff).
+
+### Fixed
+- **Renamed/moved files** in Local Changes now show `newname ← old/path` (with the
+  full `old → new` on hover) instead of only the new name, which looked like an
+  unfamiliar/new file.
+
 ## [0.2.0] — 2026-07-07
 
 Expands the Git tool window to a near-complete, PhpStorm-style VCS action set.
@@ -113,6 +128,7 @@ and the code-intelligence / git / merge feature set.
 - Extensive Rust `cargo test` + frontend Vitest coverage; several features
   hardened via adversarial multi-agent review.
 
-[Unreleased]: https://github.com/mockingbitch/jak-ide/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/mockingbitch/jak-ide/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/mockingbitch/jak-ide/releases/tag/v0.2.1
 [0.2.0]: https://github.com/mockingbitch/jak-ide/releases/tag/v0.2.0
 [0.1.0]: https://github.com/mockingbitch/jak-ide/releases/tag/v0.1.0
