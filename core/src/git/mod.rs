@@ -2,9 +2,12 @@
 //! Node `gitRouter`. Handlers stay thin — they extract params, call `ops`/`clone`
 //! against the live project root, and serialise the same JSON the UI expects.
 
+mod actions;
 mod clone;
 mod exec;
 mod ops;
+mod remote_ops;
+mod stash;
 
 use std::sync::Arc;
 
@@ -53,6 +56,31 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/api/git/fetch", post(fetch))
         .route("/api/git/pull", post(pull))
         .route("/api/git/push", post(push))
+        .route("/api/git/remote/add", post(remote_add))
+        .route("/api/git/remote/remove", post(remote_remove))
+        .route("/api/git/remote/set-url", post(remote_set_url))
+        // history-affecting actions
+        .route("/api/git/reset", post(reset))
+        .route("/api/git/clean", post(clean))
+        .route("/api/git/revert", post(revert))
+        .route("/api/git/cherry-pick", post(cherry_pick))
+        .route("/api/git/rebase", post(rebase))
+        .route("/api/git/rebase/abort", post(rebase_abort))
+        .route("/api/git/rebase/continue", post(rebase_continue))
+        .route("/api/git/merge/abort", post(merge_abort))
+        .route("/api/git/merge/continue", post(merge_continue))
+        .route("/api/git/cherry-pick/abort", post(cherry_pick_abort))
+        .route("/api/git/cherry-pick/continue", post(cherry_pick_continue))
+        .route("/api/git/revert/abort", post(revert_abort))
+        .route("/api/git/revert/continue", post(revert_continue))
+        .route("/api/git/operation-state", get(operation_state))
+        // stash
+        .route("/api/git/stash/list", get(stash_list))
+        .route("/api/git/stash/push", post(stash_push))
+        .route("/api/git/stash/apply", post(stash_apply))
+        .route("/api/git/stash/pop", post(stash_pop))
+        .route("/api/git/stash/drop", post(stash_drop))
+        .route("/api/git/stash/show", get(stash_show))
 }
 
 fn ok() -> Json<Value> {
@@ -237,9 +265,12 @@ async fn resolve(State(st): State<Arc<AppState>>, Json(b): Json<ResolveBody>) ->
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CommitBody {
     message: Option<String>,
     amend: Option<bool>,
+    sign_off: Option<bool>,
+    no_verify: Option<bool>,
     paths: Option<Vec<String>>,
 }
 
@@ -248,10 +279,15 @@ async fn commit(State(st): State<Arc<AppState>>, Json(b): Json<CommitBody>) -> A
     if message.trim().is_empty() {
         return Err(ApiError::bad("commit message is required"));
     }
+    let opts = ops::CommitOpts {
+        amend: b.amend.unwrap_or(false),
+        signoff: b.sign_off.unwrap_or(false),
+        no_verify: b.no_verify.unwrap_or(false),
+    };
     let root = st.root();
     let out = match b.paths {
-        Some(paths) if !paths.is_empty() => ops::commit_files(&root, &message, &paths).await?,
-        _ => ops::commit(&root, &message, b.amend.unwrap_or(false)).await?,
+        Some(paths) if !paths.is_empty() => ops::commit_files(&root, &message, &paths, &opts).await?,
+        _ => ops::commit(&root, &message, &opts).await?,
     };
     Ok(Json(json!({ "ok": true, "output": out })))
 }
@@ -376,4 +412,168 @@ struct PushBody {
 async fn push(State(st): State<Arc<AppState>>, Json(b): Json<PushBody>) -> ApiResult<Json<Value>> {
     let out = ops::push(&st.root(), b.set_upstream.unwrap_or(false)).await?;
     Ok(Json(json!({ "ok": true, "output": out })))
+}
+
+#[derive(Deserialize)]
+struct RemoteBody {
+    name: Option<String>,
+    url: Option<String>,
+}
+
+async fn remote_add(State(st): State<Arc<AppState>>, Json(b): Json<RemoteBody>) -> ApiResult<Json<Value>> {
+    remote_ops::add(&st.root(), &b.name.unwrap_or_default(), &b.url.unwrap_or_default()).await?;
+    Ok(ok())
+}
+async fn remote_remove(State(st): State<Arc<AppState>>, Json(b): Json<RemoteBody>) -> ApiResult<Json<Value>> {
+    remote_ops::remove(&st.root(), &b.name.unwrap_or_default()).await?;
+    Ok(ok())
+}
+async fn remote_set_url(State(st): State<Arc<AppState>>, Json(b): Json<RemoteBody>) -> ApiResult<Json<Value>> {
+    remote_ops::set_url(&st.root(), &b.name.unwrap_or_default(), &b.url.unwrap_or_default()).await?;
+    Ok(ok())
+}
+
+// --- history-affecting actions ------------------------------------------
+
+#[derive(Deserialize)]
+struct ResetBody {
+    mode: Option<String>,
+    target: Option<String>,
+}
+
+async fn reset(State(st): State<Arc<AppState>>, Json(b): Json<ResetBody>) -> ApiResult<Json<Value>> {
+    let out = actions::reset(&st.root(), &b.mode.unwrap_or_default(), &b.target.unwrap_or_default()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+
+#[derive(Deserialize, Default)]
+struct CleanBody {
+    #[serde(rename = "dryRun")]
+    dry_run: Option<bool>,
+    dirs: Option<bool>,
+}
+
+async fn clean(State(st): State<Arc<AppState>>, body: Option<Json<CleanBody>>) -> ApiResult<Json<Value>> {
+    let b = body.map(|Json(b)| b).unwrap_or_default();
+    let paths = actions::clean(&st.root(), b.dry_run.unwrap_or(true), b.dirs.unwrap_or(true)).await?;
+    Ok(Json(json!({ "ok": true, "paths": paths })))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RevisionBody {
+    hash: Option<String>,
+    no_commit: Option<bool>,
+}
+
+async fn revert(State(st): State<Arc<AppState>>, Json(b): Json<RevisionBody>) -> ApiResult<Json<Value>> {
+    let out = actions::revert(&st.root(), &b.hash.unwrap_or_default(), b.no_commit.unwrap_or(false)).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+
+async fn cherry_pick(State(st): State<Arc<AppState>>, Json(b): Json<RevisionBody>) -> ApiResult<Json<Value>> {
+    let out = actions::cherry_pick(&st.root(), &b.hash.unwrap_or_default(), b.no_commit.unwrap_or(false)).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+
+#[derive(Deserialize)]
+struct OntoBody {
+    onto: Option<String>,
+}
+
+async fn rebase(State(st): State<Arc<AppState>>, Json(b): Json<OntoBody>) -> ApiResult<Json<Value>> {
+    let out = actions::rebase(&st.root(), &b.onto.unwrap_or_default()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+async fn rebase_abort(State(st): State<Arc<AppState>>) -> ApiResult<Json<Value>> {
+    let out = actions::rebase_abort(&st.root()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+async fn rebase_continue(State(st): State<Arc<AppState>>) -> ApiResult<Json<Value>> {
+    let out = actions::rebase_continue(&st.root()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+async fn merge_abort(State(st): State<Arc<AppState>>) -> ApiResult<Json<Value>> {
+    let out = actions::merge_abort(&st.root()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+async fn merge_continue(State(st): State<Arc<AppState>>) -> ApiResult<Json<Value>> {
+    let out = actions::merge_continue(&st.root()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+async fn cherry_pick_abort(State(st): State<Arc<AppState>>) -> ApiResult<Json<Value>> {
+    let out = actions::cherry_pick_abort(&st.root()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+async fn cherry_pick_continue(State(st): State<Arc<AppState>>) -> ApiResult<Json<Value>> {
+    let out = actions::cherry_pick_continue(&st.root()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+async fn revert_abort(State(st): State<Arc<AppState>>) -> ApiResult<Json<Value>> {
+    let out = actions::revert_abort(&st.root()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+async fn revert_continue(State(st): State<Arc<AppState>>) -> ApiResult<Json<Value>> {
+    let out = actions::revert_continue(&st.root()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+
+async fn operation_state(State(st): State<Arc<AppState>>) -> Json<actions::OperationState> {
+    Json(actions::operation_state(&st.root()).await)
+}
+
+// --- stash ---------------------------------------------------------------
+
+async fn stash_list(State(st): State<Arc<AppState>>) -> ApiResult<Json<Vec<stash::StashEntry>>> {
+    Ok(Json(stash::list(&st.root()).await?))
+}
+
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct StashPushBody {
+    message: Option<String>,
+    include_untracked: Option<bool>,
+    keep_index: Option<bool>,
+}
+
+async fn stash_push(State(st): State<Arc<AppState>>, body: Option<Json<StashPushBody>>) -> ApiResult<Json<Value>> {
+    let b = body.map(|Json(b)| b).unwrap_or_default();
+    let out = stash::push(
+        &st.root(),
+        b.message.as_deref(),
+        b.include_untracked.unwrap_or(false),
+        b.keep_index.unwrap_or(false),
+    )
+    .await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+
+#[derive(Deserialize)]
+struct StashRefBody {
+    #[serde(rename = "ref")]
+    reference: Option<String>,
+}
+
+async fn stash_apply(State(st): State<Arc<AppState>>, Json(b): Json<StashRefBody>) -> ApiResult<Json<Value>> {
+    let out = stash::apply(&st.root(), &b.reference.unwrap_or_default()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+async fn stash_pop(State(st): State<Arc<AppState>>, Json(b): Json<StashRefBody>) -> ApiResult<Json<Value>> {
+    let out = stash::pop(&st.root(), &b.reference.unwrap_or_default()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+async fn stash_drop(State(st): State<Arc<AppState>>, Json(b): Json<StashRefBody>) -> ApiResult<Json<Value>> {
+    let out = stash::drop(&st.root(), &b.reference.unwrap_or_default()).await?;
+    Ok(Json(json!({ "ok": true, "output": out })))
+}
+
+#[derive(Deserialize)]
+struct StashShowQuery {
+    #[serde(rename = "ref")]
+    reference: Option<String>,
+}
+
+async fn stash_show(State(st): State<Arc<AppState>>, Query(q): Query<StashShowQuery>) -> ApiResult<Json<Value>> {
+    let patch = stash::show(&st.root(), &q.reference.unwrap_or_default()).await?;
+    Ok(Json(json!({ "patch": patch })))
 }

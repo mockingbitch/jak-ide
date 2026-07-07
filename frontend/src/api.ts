@@ -210,12 +210,21 @@ export const gitClone = (url: string, parent: string, name?: string): Promise<{ 
   POST('/api/git/clone', { url, parent, name }).then(jsonOrThrow);
 
 export const gitStage = (paths: string[]) => POST('/api/git/stage', { paths }).then(jsonOrThrow);
+export const gitUnstage = (paths: string[]) => POST('/api/git/unstage', { paths }).then(jsonOrThrow);
 export const gitDiscard = (paths: string[]) => POST('/api/git/discard', { paths }).then(jsonOrThrow);
-export const gitCommit = (message: string, amend = false): Promise<{ ok: boolean; output: string }> =>
-  POST('/api/git/commit', { message, amend }).then(jsonOrThrow);
+export interface CommitOptions {
+  amend?: boolean;
+  signOff?: boolean;
+  noVerify?: boolean;
+}
+export const gitCommit = (message: string, opts: CommitOptions = {}): Promise<{ ok: boolean; output: string }> =>
+  POST('/api/git/commit', { message, ...opts }).then(jsonOrThrow);
 /** PhpStorm-style: commit exactly the given (checked) files. */
-export const gitCommitFiles = (message: string, paths: string[]): Promise<{ ok: boolean; output: string }> =>
-  POST('/api/git/commit', { message, paths }).then(jsonOrThrow);
+export const gitCommitFiles = (
+  message: string,
+  paths: string[],
+  opts: CommitOptions = {}
+): Promise<{ ok: boolean; output: string }> => POST('/api/git/commit', { message, paths, ...opts }).then(jsonOrThrow);
 
 export const gitCreateBranch = (name: string, checkout = true, startPoint?: string) =>
   POST('/api/git/branch', { name, checkout, startPoint }).then(jsonOrThrow);
@@ -249,6 +258,63 @@ export interface GitConflict {
 }
 export const gitConflict = (path: string): Promise<GitConflict> =>
   fetch(`/api/git/conflict?path=${encodeURIComponent(path)}`).then(jsonOrThrow);
+
+// --- remotes -----------------------------------------------------------------
+export interface GitRemote {
+  name: string;
+  url: string;
+}
+export const gitRemotes = (): Promise<GitRemote[]> => fetch('/api/git/remotes').then(jsonOrThrow);
+export const gitAddRemote = (name: string, url: string) =>
+  POST('/api/git/remote/add', { name, url }).then(jsonOrThrow);
+export const gitRemoveRemote = (name: string) => POST('/api/git/remote/remove', { name }).then(jsonOrThrow);
+export const gitSetRemoteUrl = (name: string, url: string) =>
+  POST('/api/git/remote/set-url', { name, url }).then(jsonOrThrow);
+
+// --- history-affecting actions ----------------------------------------------
+export type ResetMode = 'soft' | 'mixed' | 'hard';
+export const gitReset = (mode: ResetMode, target = 'HEAD'): Promise<{ ok: boolean; output: string }> =>
+  POST('/api/git/reset', { mode, target }).then(jsonOrThrow);
+export const gitClean = (opts: { dryRun?: boolean; dirs?: boolean } = {}): Promise<{ ok: boolean; paths: string[] }> =>
+  POST('/api/git/clean', opts).then(jsonOrThrow);
+export const gitRevert = (hash: string, noCommit = false): Promise<{ ok: boolean; output: string }> =>
+  POST('/api/git/revert', { hash, noCommit }).then(jsonOrThrow);
+export const gitCherryPick = (hash: string, noCommit = false): Promise<{ ok: boolean; output: string }> =>
+  POST('/api/git/cherry-pick', { hash, noCommit }).then(jsonOrThrow);
+export const gitRebase = (onto: string): Promise<{ ok: boolean; output: string }> =>
+  POST('/api/git/rebase', { onto }).then(jsonOrThrow);
+export const gitRebaseAbort = () => POST('/api/git/rebase/abort', {}).then(jsonOrThrow);
+export const gitRebaseContinue = () => POST('/api/git/rebase/continue', {}).then(jsonOrThrow);
+export const gitMergeAbort = () => POST('/api/git/merge/abort', {}).then(jsonOrThrow);
+export const gitMergeContinue = () => POST('/api/git/merge/continue', {}).then(jsonOrThrow);
+export const gitCherryPickAbort = () => POST('/api/git/cherry-pick/abort', {}).then(jsonOrThrow);
+export const gitCherryPickContinue = () => POST('/api/git/cherry-pick/continue', {}).then(jsonOrThrow);
+export const gitRevertAbort = () => POST('/api/git/revert/abort', {}).then(jsonOrThrow);
+export const gitRevertContinue = () => POST('/api/git/revert/continue', {}).then(jsonOrThrow);
+
+export interface GitOperationState {
+  merging: boolean;
+  rebasing: boolean;
+  cherryPicking: boolean;
+  reverting: boolean;
+}
+export const gitOperationState = (): Promise<GitOperationState> =>
+  fetch('/api/git/operation-state').then(jsonOrThrow);
+
+// --- stash -------------------------------------------------------------------
+export interface StashEntry {
+  index: number;
+  branch: string;
+  message: string;
+}
+export const gitStashList = (): Promise<StashEntry[]> => fetch('/api/git/stash/list').then(jsonOrThrow);
+export const gitStashPush = (opts: { message?: string; includeUntracked?: boolean; keepIndex?: boolean } = {}) =>
+  POST('/api/git/stash/push', opts).then(jsonOrThrow);
+export const gitStashApply = (ref: string) => POST('/api/git/stash/apply', { ref }).then(jsonOrThrow);
+export const gitStashPop = (ref: string) => POST('/api/git/stash/pop', { ref }).then(jsonOrThrow);
+export const gitStashDrop = (ref: string) => POST('/api/git/stash/drop', { ref }).then(jsonOrThrow);
+export const gitStashShow = (ref: string): Promise<{ patch: string }> =>
+  fetch(`/api/git/stash/show?ref=${encodeURIComponent(ref)}`).then(jsonOrThrow);
 /** SSE URL for streaming clone progress (consumed with fetch + ReadableStream). */
 export const gitCloneStreamUrl = (url: string, parent: string, name?: string) =>
   `/api/git/clone-stream?url=${encodeURIComponent(url)}&parent=${encodeURIComponent(parent)}` +

@@ -296,18 +296,40 @@ pub async fn resolve(cwd: &Path, file: &str, side: &str) -> Result<(), GitError>
     git(cwd, &["add", "--", file]).await.map(|_| ())
 }
 
-pub async fn commit(cwd: &Path, message: &str, amend: bool) -> Result<String, GitError> {
-    let mut args: Vec<&str> = vec!["commit", "-m", message];
-    if amend {
-        args.push("--amend");
+/// Commit modifiers (PhpStorm commit-panel toggles).
+#[derive(Default, Clone, Copy)]
+pub struct CommitOpts {
+    pub amend: bool,
+    pub signoff: bool,
+    pub no_verify: bool,
+}
+
+impl CommitOpts {
+    fn flags(&self) -> Vec<&'static str> {
+        let mut f = Vec::new();
+        if self.amend {
+            f.push("--amend");
+        }
+        if self.signoff {
+            f.push("--signoff");
+        }
+        if self.no_verify {
+            f.push("--no-verify");
+        }
+        f
     }
+}
+
+pub async fn commit(cwd: &Path, message: &str, opts: &CommitOpts) -> Result<String, GitError> {
+    let mut args: Vec<&str> = vec!["commit", "-m", message];
+    args.extend(opts.flags());
     git(cwd, &args).await
 }
 
 /// Commit exactly the given files (PhpStorm-style checkbox commit). Stages the
 /// listed paths that still exist (a staged rename's source no longer exists but
 /// must stay in the commit pathspec), then partial-commits just those paths.
-pub async fn commit_files(cwd: &Path, message: &str, paths: &[String]) -> Result<String, GitError> {
+pub async fn commit_files(cwd: &Path, message: &str, paths: &[String], opts: &CommitOpts) -> Result<String, GitError> {
     if paths.is_empty() {
         return Err(GitError::new("No files selected to commit", 1));
     }
@@ -321,8 +343,14 @@ pub async fn commit_files(cwd: &Path, message: &str, paths: &[String]) -> Result
         add_args.extend(to_add.iter().copied());
         git(cwd, &add_args).await?;
     }
-    let mut args: Vec<&str> = vec!["commit", "-m", message, "--"];
-    args.extend(paths.iter().map(|s| s.as_str()));
+    let mut args: Vec<&str> = vec!["commit", "-m", message];
+    args.extend(opts.flags());
+    // git forbids a partial (path-scoped) commit during a merge/cherry-pick, and
+    // the whole conflict is being resolved anyway — commit everything staged then.
+    if !super::actions::partial_commit_blocked(cwd).await {
+        args.push("--");
+        args.extend(paths.iter().map(|s| s.as_str()));
+    }
     git(cwd, &args).await
 }
 

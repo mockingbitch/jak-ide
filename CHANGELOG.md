@@ -8,6 +8,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 _Nothing yet._
 
+## [0.2.0] — 2026-07-07
+
+Expands the Git tool window to a near-complete, PhpStorm-style VCS action set.
+
+### Added
+- **Local Changes context menu** — right-click a changed file for Show Diff,
+  Stage / Unstage (with a staged indicator), Rollback, Show History, Annotate,
+  and Copy (relative) Path; explicit `git` index staging alongside the
+  checkbox-commit flow.
+- **Stash manager** — list, create (with include-untracked / keep-index), apply,
+  pop, drop, and show-diff.
+- **History-affecting actions** — `reset` (soft / mixed / hard, with a guarded
+  dialog), `clean` untracked (dry-run preview + confirm), `revert`, `cherry-pick`,
+  and `rebase onto`; **Abort / Continue** for merge, rebase, cherry-pick, and
+  revert, surfaced by an **in-progress banner** driven by live operation-state
+  detection.
+- **Git log commit context menu** — checkout revision, cherry-pick, revert,
+  reset-current-to-here, new-branch-from-commit, and copy hash.
+- **Remote management** — add / remove / edit remote URLs (credentials stay with
+  the user's git credential helper; never stored by JakIDE).
+- **Commit options** — amend, sign-off, and no-verify toggles in the commit panel
+  (amend resets per commit, PhpStorm-style).
+- A **VCS Operations** popup consolidating stash / remotes / reset / clean.
+
+### Notes
+- Every mutating action refreshes git status afterward; dangerous actions
+  (reset --hard, clean, drop stash, rollback, remove remote) confirm first.
+- New Rust `git/{stash,actions,remote_ops}` modules wrap the git CLI safely
+  (argument arrays, no shell interpolation, injection/flag guards) with unit
+  tests for the output parsers. Hardened via adversarial multi-agent review.
+
 ## [0.1.0] — 2026-07-06
 
 First tagged release. JakIDE is a native (Electron) AI-first IDE with a Rust core
@@ -82,5 +113,6 @@ and the code-intelligence / git / merge feature set.
 - Extensive Rust `cargo test` + frontend Vitest coverage; several features
   hardened via adversarial multi-agent review.
 
-[Unreleased]: https://github.com/mockingbitch/jak-ide/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mockingbitch/jak-ide/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/mockingbitch/jak-ide/releases/tag/v0.2.0
 [0.1.0]: https://github.com/mockingbitch/jak-ide/releases/tag/v0.1.0

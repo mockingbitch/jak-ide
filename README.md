@@ -9,6 +9,17 @@ interactive terminal, and Docker / database panels.
 > Status: pre-1.0. The app runs **only as a native Electron window** — there is
 > no standalone browser mode.
 
+## Install (Linux x64)
+
+Grab a prebuilt installer from the [**latest release**](https://github.com/mockingbitch/jak-ide/releases/latest) — no build step needed:
+
+- **`.deb`** (Debian/Ubuntu): `sudo dpkg -i JakIDE-*.deb` (then launch **JakIDE** from your app menu).
+- **`.AppImage`** (portable): `chmod +x JakIDE-*.AppImage && ./JakIDE-*.AppImage`.
+  Needs FUSE — `sudo apt install libfuse2`, or run with `./JakIDE-*.AppImage --appimage-extract-and-run`.
+
+The AppImage auto-updates from future GitHub releases. To build from source instead
+(or to develop), see [Quick start](#quick-start) below.
+
 ## Architecture
 
 JakIDE is a 4-part monorepo. The **Rust core is the front door**: the renderer

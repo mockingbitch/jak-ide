@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
+import type { CommitOptions } from '../api';
 import {
   gitStatus,
   gitLog,
@@ -17,6 +18,15 @@ import { FileIcon } from './FileIcon';
 import { CloneDialog } from './CloneDialog';
 import { BranchMenu } from './BranchMenu';
 import { PullDialog } from './PullDialog';
+import { VcsContextMenu } from './vcs/VcsContextMenu';
+import { VcsOperationsMenu } from './vcs/VcsOperationsMenu';
+import { InProgressBanner } from './vcs/InProgressBanner';
+import { ResetDialog } from './vcs/ResetDialog';
+import { CommitPanel } from './vcs/CommitPanel';
+import { classify } from '../lib/vcs/fileStatus';
+import { useVcsFileMenu } from '../hooks/useVcsFileMenu';
+import { useGitLogMenu, type GitLogActionId } from '../hooks/useGitLogMenu';
+import { gitOperationState, type GitOperationState } from '../api';
 import { IconBranch, IconRefresh, IconArrowUp, IconArrowDown, IconTrash, IconChevronDown, IconCheck } from './icons';
 
 const dirOf = (p: string) => {
@@ -125,8 +135,12 @@ export function GitPanel() {
   const [branchMenu, setBranchMenu] = useState(false);
   const [cloning, setCloning] = useState(false);
   const [pullOpen, setPullOpen] = useState(false);
+  const [opState, setOpState] = useState<GitOperationState>({ merging: false, rebasing: false, cherryPicking: false, reverting: false });
+  const [resetTarget, setResetTarget] = useState<string | null>(null);
+  const [commitOpts, setCommitOpts] = useState<CommitOptions>({ amend: false, signOff: false, noVerify: false });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const prevPaths = useRef<Set<string>>(new Set());
+  const toggleOpt = (k: keyof CommitOptions) => setCommitOpts((o) => ({ ...o, [k]: !o[k] }));
 
   const refresh = useCallback(async () => {
     try {
@@ -135,6 +149,7 @@ export function GitPanel() {
       setGit({ repo: st.repo, branch: st.branch, ahead: st.ahead, behind: st.behind, changed: st.files.length, detached: st.detached });
       setGitFiles(st.files);
       setCommits(st.repo ? await gitLog(80) : []);
+      setOpState(st.repo ? await gitOperationState() : { merging: false, rebasing: false, cherryPicking: false, reverting: false });
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -185,6 +200,13 @@ export function GitPanel() {
       setError((e as Error).message);
     }
   };
+  const { menu, openMenu, closeMenu, run: runMenuAction } = useVcsFileMenu({
+    act,
+    openDiff,
+    openMerge,
+    onError: setError,
+  });
+  const logMenu = useGitLogMenu({ onDone: refresh, onReset: (hash) => setResetTarget(hash) });
 
   const toggle = (p: string) =>
     setSelected((s) => {
@@ -213,8 +235,9 @@ export function GitPanel() {
 
   const commit = () =>
     act(async () => {
-      await gitCommitFiles(message.trim(), selectedPaths());
+      await gitCommitFiles(message.trim(), selectedPaths(), commitOpts);
       setMessage('');
+      setCommitOpts({ amend: false, signOff: false, noVerify: false }); // per-commit intent — reset like PhpStorm
     });
 
   // Commit, then push in the same action. A push failure still surfaces via `act`
@@ -222,8 +245,9 @@ export function GitPanel() {
   // the branch (sets upstream) when it has none yet, like the toolbar Push button.
   const commitAndPush = () =>
     act(async () => {
-      await gitCommitFiles(message.trim(), selectedPaths());
+      await gitCommitFiles(message.trim(), selectedPaths(), commitOpts);
       setMessage('');
+      setCommitOpts({ amend: false, signOff: false, noVerify: false });
       await gitPush(status?.upstream == null);
     });
 
@@ -270,8 +294,9 @@ export function GitPanel() {
 
   const FileRow = ({ f }: { f: GitFileEntry }) => {
     const s = statusOf(f);
+    const staged = classify(f).staged;
     return (
-      <div className="git-file" onClick={() => openDiff(f)} title={f.path}>
+      <div className="git-file" onClick={() => openDiff(f)} onContextMenu={(e) => openMenu(e, f)} title={f.path}>
         <input
           type="checkbox"
           className="git-check"
@@ -282,6 +307,7 @@ export function GitPanel() {
         <span className={'git-badge ' + s.cls} title={s.label} aria-label={s.label}>
           {s.letter}
         </span>
+        {staged && <span className="git-staged-dot" title="Staged (in index)" aria-label="Staged" />}
         <FileIcon name={baseOf(f.path)} />
         <span className="git-file-name">{baseOf(f.path)}</span>
         <span className="git-file-dir">{dirOf(f.path)}</span>
@@ -359,6 +385,7 @@ export function GitPanel() {
           >
             <IconArrowUp size={15} />
           </button>
+          <VcsOperationsMenu onDone={refresh} onOpenReset={() => setResetTarget('HEAD')} />
         </div>
         {branchMenu && (
           <>
@@ -399,6 +426,7 @@ export function GitPanel() {
       </div>
 
       {error && <div className="git-error">{error}</div>}
+      <InProgressBanner state={opState} onDone={refresh} />
 
       {tab === 'changes' ? (
         <>
@@ -418,7 +446,7 @@ export function GitPanel() {
                   </span>
                 </div>
                 {conflicts.map((f) => (
-                  <div key={'c:' + f.path} className="git-file conflict" onClick={() => openDiff(f)} title={f.path}>
+                  <div key={'c:' + f.path} className="git-file conflict" onClick={() => openDiff(f)} onContextMenu={(e) => openMenu(e, f)} title={f.path}>
                     <span className="git-badge u">U</span>
                     <FileIcon name={baseOf(f.path)} />
                     <span className="git-file-name">{baseOf(f.path)}</span>
@@ -443,41 +471,28 @@ export function GitPanel() {
             <Group title="Unversioned Files" list={untracked} />
           </div>
 
-          <div className="git-commit">
-            <textarea
-              value={message}
-              placeholder="Commit message  (Ctrl/Cmd+Enter · +Shift to push)"
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey) || !canCommit) return;
-                e.preventDefault();
-                if (e.shiftKey) commitAndPush();
-                else commit();
-              }}
-            />
-            <div className="git-commit-actions">
-              <span className="muted">{selectedCount} selected</span>
-              <div className="git-commit-btns">
-                <button className="primary" disabled={!canCommit} onClick={commit}>
-                  Commit
-                </button>
-                <button
-                  className="git-commit-push"
-                  title={status?.upstream == null ? 'Commit, then publish this branch' : 'Commit, then push to upstream'}
-                  disabled={!canCommit}
-                  onClick={commitAndPush}
-                >
-                  <IconArrowUp size={13} /> Commit &amp; Push
-                </button>
-              </div>
-            </div>
-            {conflicts.length > 0 && <div className="git-hint">Resolve conflicts before committing.</div>}
-          </div>
+          <CommitPanel
+            message={message}
+            onMessageChange={setMessage}
+            opts={commitOpts}
+            onToggleOpt={toggleOpt}
+            canCommit={canCommit}
+            selectedCount={selectedCount}
+            hasConflicts={conflicts.length > 0}
+            upstreamNull={status?.upstream == null}
+            onCommit={commit}
+            onCommitAndPush={commitAndPush}
+          />
         </>
       ) : (
         <div className="git-log">
           {graph.rows.map((r) => (
-            <div key={r.commit.hash} className="git-commit-row" title={r.commit.hash}>
+            <div
+              key={r.commit.hash}
+              className="git-commit-row"
+              title={r.commit.hash}
+              onContextMenu={(e) => logMenu.openMenu(e, { hash: r.commit.hash, short: r.commit.short })}
+            >
               <GraphCell row={r} lanes={graph.lanes} />
               <div className="git-commit-body">
                 <div className="git-commit-subject">
@@ -496,6 +511,20 @@ export function GitPanel() {
       )}
 
       {cloning && <CloneDialog parentDefault={dirOf(projectRoot) || projectRoot} onClose={() => setCloning(false)} />}
+      {menu && (
+        <VcsContextMenu menu={menu} onPick={(id) => runMenuAction(id, menu.file)} onClose={closeMenu} />
+      )}
+      {logMenu.menu && (
+        <VcsContextMenu
+          menu={logMenu.menu}
+          /* the log menu only carries GitLogActionId ids (a subset of VcsActionId) */
+          onPick={(id) => logMenu.run(id as GitLogActionId, logMenu.menu!.commit)}
+          onClose={logMenu.closeMenu}
+        />
+      )}
+      {resetTarget !== null && (
+        <ResetDialog target={resetTarget} onClose={() => setResetTarget(null)} onDone={refresh} />
+      )}
     </div>
   );
 }
